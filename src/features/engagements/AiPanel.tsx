@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Select, Textarea } from "@/components/ui/input";
+import { Field, Textarea } from "@/components/ui/input";
+import { Select, SelectItem } from "@/components/ui/select";
 import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
@@ -141,37 +142,31 @@ export function AiPanel({ engagementId }: { engagementId: string }) {
                 <Select
                   value={activePolicy}
                   disabled={!canManage || setPolicy.isPending}
-                  onChange={(event) => setPolicy.mutate(event.target.value as AiPolicy)}
+                  onValueChange={(value) => setPolicy.mutate(value as AiPolicy)}
                 >
                   {(Object.keys(policyLabel) as AiPolicy[]).map((value) => (
-                    <option key={value} value={value}>
+                    <SelectItem key={value} value={value}>
                       {policyLabel[value]}
-                    </option>
+                    </SelectItem>
                   ))}
                 </Select>
               </Field>
               <Field label="Provider">
-                <Select
-                  value={selectedProviderId}
-                  onChange={(event) => setProviderId(event.target.value)}
-                >
+                <Select value={selectedProviderId} onValueChange={setProviderId}>
                   {providers.data.map((provider) => (
-                    <option key={provider.id} value={provider.id}>
+                    <SelectItem key={provider.id} value={provider.id}>
                       {provider.name} · {provider.model}
                       {provider.isLocal ? " · local" : " · cloud"}
-                    </option>
+                    </SelectItem>
                   ))}
                 </Select>
               </Field>
               <Field label="Purpose">
-                <Select
-                  value={purpose}
-                  onChange={(event) => setPurpose(event.target.value as AiPurpose)}
-                >
+                <Select value={purpose} onValueChange={(value) => setPurpose(value as AiPurpose)}>
                   {(Object.keys(purposeLabel) as AiPurpose[]).map((value) => (
-                    <option key={value} value={value}>
+                    <SelectItem key={value} value={value}>
                       {purposeLabel[value]}
-                    </option>
+                    </SelectItem>
                   ))}
                 </Select>
               </Field>

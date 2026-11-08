@@ -281,6 +281,64 @@ fn local_flow_persists_and_verifies() {
     assert_eq!(detail.test_case_count, 1);
     assert_eq!(detail.finding_count, 1);
 
+    let second = db::test_cases::create(
+        &reopened,
+        &TestCaseInput {
+            engagement_id: "engagement-1".into(),
+            template_id: None,
+            title: "Second test".into(),
+            approach: String::new(),
+            category: String::new(),
+            status: TestCaseStatus::NotStarted,
+            result: String::new(),
+            notes: String::new(),
+            assignee: String::new(),
+            sort_order: 1,
+        },
+        now,
+    )
+    .expect("second test");
+    let third = db::test_cases::create(
+        &reopened,
+        &TestCaseInput {
+            engagement_id: "engagement-1".into(),
+            template_id: None,
+            title: "Third test".into(),
+            approach: String::new(),
+            category: String::new(),
+            status: TestCaseStatus::NotStarted,
+            result: String::new(),
+            notes: String::new(),
+            assignee: String::new(),
+            sort_order: 2,
+        },
+        now,
+    )
+    .expect("third test");
+    db::test_cases::reorder(
+        &reopened,
+        "engagement-1",
+        &[third.id.clone(), test_case.id.clone(), second.id.clone()],
+        "2026-01-03T00:00:00Z",
+    )
+    .expect("reorder");
+    let ordered = db::test_cases::list(&reopened, "engagement-1").expect("ordered");
+    assert_eq!(ordered.len(), 3);
+    assert_eq!(ordered[0].id, third.id);
+    assert_eq!(ordered[1].id, test_case.id);
+    assert_eq!(ordered[2].id, second.id);
+    assert!(
+        db::test_cases::reorder(
+            &reopened,
+            "engagement-1",
+            &[third.id.clone(), test_case.id.clone()],
+            now
+        )
+        .is_err()
+    );
+    db::test_cases::delete(&reopened, &second.id).expect("delete second");
+    db::test_cases::delete(&reopened, &third.id).expect("delete third");
+
     let wrong_key = crypto::random_bytes::<32>();
     assert!(db::open_encrypted(&db_path, &wrong_key).is_err());
 }

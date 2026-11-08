@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge, FindingStatusBadge, SeverityBadge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { Field, Input, Textarea } from "@/components/ui/input";
+import { Select, SelectItem } from "@/components/ui/select";
 import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
 import { api } from "@/lib/api";
 import { findingStatusLabel, retestStatusLabel, severityLabel } from "@/lib/labels";
@@ -335,22 +336,34 @@ function FindingDialog({
             <Input placeholder="CWE-639" {...form.register("cwe")} />
           </Field>
           <Field label="Status">
-            <Select {...form.register("status")}>
-              {(Object.keys(findingStatusLabel) as FindingStatus[]).map((status) => (
-                <option key={status} value={status}>
-                  {findingStatusLabel[status]}
-                </option>
-              ))}
-            </Select>
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  {(Object.keys(findingStatusLabel) as FindingStatus[]).map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {findingStatusLabel[status]}
+                    </SelectItem>
+                  ))}
+                </Select>
+              )}
+            />
           </Field>
           <Field label="Retest">
-            <Select {...form.register("retestStatus")}>
-              {(Object.keys(retestStatusLabel) as RetestStatus[]).map((status) => (
-                <option key={status} value={status}>
-                  {retestStatusLabel[status]}
-                </option>
-              ))}
-            </Select>
+            <Controller
+              control={form.control}
+              name="retestStatus"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  {(Object.keys(retestStatusLabel) as RetestStatus[]).map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {retestStatusLabel[status]}
+                    </SelectItem>
+                  ))}
+                </Select>
+              )}
+            />
           </Field>
         </div>
 

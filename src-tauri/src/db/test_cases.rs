@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::domain::enums::TestCaseStatus;
@@ -281,4 +283,33 @@ pub fn template_exists(conn: &Connection, id: &str) -> AppResult<bool> {
         )
         .optional()?;
     Ok(exists.is_some())
+}
+
+pub fn reorder(
+    conn: &Connection,
+    engagement_id: &str,
+    ordered_ids: &[String],
+    now: &str,
+) -> AppResult<()> {
+    let mut stmt = conn.prepare("SELECT id FROM test_cases WHERE engagement_id = ?1")?;
+    let existing: HashSet<String> = stmt
+        .query_map([engagement_id], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<HashSet<_>>>()?;
+    let ordered: HashSet<String> = ordered_ids.iter().cloned().collect();
+    if existing.len() != ordered_ids.len()
+        || ordered.len() != ordered_ids.len()
+        || existing != ordered
+    {
+        return Err(AppError::Validation(
+            "The reordered list must contain every test case exactly once.".into(),
+        ));
+    }
+    for (index, id) in ordered_ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE test_cases SET sort_order = ?1, updated_at = ?2
+             WHERE id = ?3 AND engagement_id = ?4",
+            rusqlite::params![index as i64, now, id, engagement_id],
+        )?;
+    }
+    Ok(())
 }

@@ -13,7 +13,7 @@ Built with Tauri 2, Rust, React 19, and TypeScript.
 - **Engagements** — project metadata, scope assets, attack surface, risks, assumptions, contacts,
   status, and versioning.
 - **Test tracker** — reusable domain templates (web, API, mobile, thick client, container, cloud,
-  Windows, SAP, AI, BI), status, results, notes, and assignee.
+  Windows, SAP, AI, BI), status, results, and notes.
 - **Findings** — structured records with server-computed Probability × Impact severity, OWASP/CWE
   references, remediation, retest status, owner, and linked test cases.
 - **Encrypted evidence** — screenshots and files encrypted per engagement with integrity hashes,
@@ -90,7 +90,9 @@ Open an engagement to access its tabs.
 
 - **From templates** adds reusable test cases by domain.
 - **Custom test** creates a blank test case.
-- Change status inline and edit the approach, result, notes, and assignee.
+- Change status inline, edit the approach, result, and notes, and search/filter large trackers.
+- Reorder tests with the up/down controls (filters must be cleared while reordering).
+- The current user is recorded as the assignee automatically; there is no manual assignee field.
 - Keep status, result, evidence, and linked findings separate. A passed test is not a finding.
 
 ### Findings

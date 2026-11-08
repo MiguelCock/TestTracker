@@ -64,3 +64,15 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+input,
+textarea,
+select,
+option {
+  color-scheme: dark;
+}
+
+option {
+  background-color: #0f172a;
+  color: #f8fafc;
+}

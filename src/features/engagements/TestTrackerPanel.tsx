@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ListChecks, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ListChecks, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { Field, Input, Textarea } from "@/components/ui/input";
+import { Select, SelectItem } from "@/components/ui/select";
 import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
 import { api } from "@/lib/api";
 import { testCaseStatusLabel } from "@/lib/labels";
@@ -19,6 +20,8 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [editing, setEditing] = useState<TestCase | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<TestCaseStatus | "all">("all");
   const testCases = useQuery({
     queryKey: ["test-cases", engagementId],
     queryFn: () => api.listTestCases(engagementId),
@@ -42,6 +45,37 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
     onSuccess: invalidate,
   });
 
+  const reorder = useMutation({
+    mutationFn: (orderedIds: string[]) => api.reorderTestCases(engagementId, orderedIds),
+    onSuccess: invalidate,
+  });
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return (testCases.data ?? [])
+      .map((testCase, index) => ({ testCase, index }))
+      .filter(({ testCase }) => {
+        const matchesStatus = statusFilter === "all" || testCase.status === statusFilter;
+        const matchesSearch =
+          !query ||
+          testCase.title.toLowerCase().includes(query) ||
+          testCase.category.toLowerCase().includes(query) ||
+          testCase.approach.toLowerCase().includes(query);
+        return matchesStatus && matchesSearch;
+      });
+  }, [testCases.data, search, statusFilter]);
+
+  const canReorder = !search.trim() && statusFilter === "all";
+
+  const move = (index: number, direction: -1 | 1) => {
+    const data = testCases.data ?? [];
+    const target = index + direction;
+    if (target < 0 || target >= data.length) return;
+    const ids = data.map((testCase) => testCase.id);
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    reorder.mutate(ids);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -61,10 +95,46 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 sm:max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search title, category, or approach"
+            className="pl-9"
+          />
+        </div>
+        <Select
+          value={statusFilter}
+          onValueChange={(value) => setStatusFilter(value as TestCaseStatus | "all")}
+          className="w-44"
+        >
+          <SelectItem value="all">All statuses</SelectItem>
+          {(Object.keys(testCaseStatusLabel) as TestCaseStatus[]).map((status) => (
+            <SelectItem key={status} value={status}>
+              {testCaseStatusLabel[status]}
+            </SelectItem>
+          ))}
+        </Select>
+        {!canReorder && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("all");
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
+      </div>
+
       {testCases.isLoading && <LoadingBlock label="Loading test cases…" />}
       {testCases.isError && <ErrorBlock message={testCases.error.message} />}
-      {(update.isError || remove.isError) && (
-        <ErrorBlock message={(update.error ?? remove.error)!.message} />
+      {(update.isError || remove.isError || reorder.isError) && (
+        <ErrorBlock message={(update.error ?? remove.error ?? reorder.error)!.message} />
       )}
 
       {testCases.data && testCases.data.length === 0 && (
@@ -79,7 +149,26 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
         />
       )}
 
-      {testCases.data && testCases.data.length > 0 && (
+      {testCases.data && testCases.data.length > 0 && filtered.length === 0 && (
+        <EmptyState
+          title="No test cases match"
+          description="Try a different search term or status filter."
+          action={
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+              }}
+            >
+              Clear filters
+            </Button>
+          }
+        />
+      )}
+
+      {filtered.length > 0 && (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -88,12 +177,11 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
                   <th className="px-4 py-3 font-medium">Test</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Result</th>
-                  <th className="px-4 py-3 font-medium">Assignee</th>
                   <th className="px-4 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {testCases.data.map((testCase) => (
+                {filtered.map(({ testCase, index }) => (
                   <tr
                     key={testCase.id}
                     className="align-top transition-colors hover:bg-slate-800/20"
@@ -113,19 +201,19 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
                       <Select
                         className="h-8 w-36 text-xs"
                         value={testCase.status}
-                        onChange={(event) =>
+                        onValueChange={(value) =>
                           update.mutate({
                             id: testCase.id,
                             input: toInput(testCase, {
-                              status: event.target.value as TestCaseStatus,
+                              status: value as TestCaseStatus,
                             }),
                           })
                         }
                       >
                         {(Object.keys(testCaseStatusLabel) as TestCaseStatus[]).map((status) => (
-                          <option key={status} value={status}>
+                          <SelectItem key={status} value={status}>
                             {testCaseStatusLabel[status]}
-                          </option>
+                          </SelectItem>
                         ))}
                       </Select>
                     </td>
@@ -136,9 +224,30 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
                         <span className="text-slate-600">No result recorded</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-400">{testCase.assignee || "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Move test case up"
+                          disabled={!canReorder || index === 0 || reorder.isPending}
+                          onClick={() => move(index, -1)}
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Move test case down"
+                          disabled={
+                            !canReorder ||
+                            index === (testCases.data?.length ?? 1) - 1 ||
+                            reorder.isPending
+                          }
+                          onClick={() => move(index, 1)}
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -181,6 +290,7 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
           onOpenChange={setCustomOpen}
           engagementId={engagementId}
           testCase={null}
+          defaultSortOrder={testCases.data?.length ?? 0}
           onSaved={invalidate}
         />
       )}
@@ -191,6 +301,7 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
           onOpenChange={(open) => !open && setEditing(null)}
           engagementId={engagementId}
           testCase={editing}
+          defaultSortOrder={editing.sortOrder}
           onSaved={invalidate}
         />
       )}
@@ -221,7 +332,6 @@ const testCaseSchema = z.object({
   approach: z.string().max(20_000),
   result: z.string().max(20_000),
   notes: z.string().max(20_000),
-  assignee: z.string().max(120),
 });
 
 type TestCaseValues = z.infer<typeof testCaseSchema>;
@@ -231,12 +341,14 @@ function TestCaseDialog({
   onOpenChange,
   engagementId,
   testCase,
+  defaultSortOrder,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   engagementId: string;
   testCase: TestCase | null;
+  defaultSortOrder: number;
   onSaved: () => void;
 }) {
   const [serverError, setServerError] = useState<string | null>(null);
@@ -260,8 +372,8 @@ function TestCaseDialog({
         status: values.status,
         result: values.result,
         notes: values.notes,
-        assignee: values.assignee.trim(),
-        sortOrder: testCase?.sortOrder ?? 0,
+        assignee: testCase?.assignee ?? "",
+        sortOrder: testCase?.sortOrder ?? defaultSortOrder,
       };
       return testCase ? api.updateTestCase(testCase.id, input) : api.createTestCase(input);
     },
@@ -307,23 +419,24 @@ function TestCaseDialog({
             <Input autoFocus {...form.register("title")} />
           </Field>
           <Field label="Status">
-            <Select {...form.register("status")}>
-              {(Object.keys(testCaseStatusLabel) as TestCaseStatus[]).map((status) => (
-                <option key={status} value={status}>
-                  {testCaseStatusLabel[status]}
-                </option>
-              ))}
-            </Select>
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  {(Object.keys(testCaseStatusLabel) as TestCaseStatus[]).map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {testCaseStatusLabel[status]}
+                    </SelectItem>
+                  ))}
+                </Select>
+              )}
+            />
           </Field>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Category">
-            <Input placeholder="Injection, authentication…" {...form.register("category")} />
-          </Field>
-          <Field label="Assignee">
-            <Input {...form.register("assignee")} />
-          </Field>
-        </div>
+        <Field label="Category">
+          <Input placeholder="Injection, authentication…" {...form.register("category")} />
+        </Field>
         <Field label="Test approach">
           <Textarea rows={3} {...form.register("approach")} />
         </Field>
@@ -352,7 +465,6 @@ function valuesFor(testCase: TestCase | null): TestCaseValues {
     approach: testCase?.approach ?? "",
     result: testCase?.result ?? "",
     notes: testCase?.notes ?? "",
-    assignee: testCase?.assignee ?? "",
   };
 }
 

@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Select, Textarea } from "@/components/ui/input";
+import { Field, Textarea } from "@/components/ui/input";
+import { Select, SelectItem } from "@/components/ui/select";
 import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
 import { api } from "@/lib/api";
 import { base64ToBytes, readFileAsBase64 } from "@/lib/base64";
@@ -326,22 +327,28 @@ function AddEvidenceDialog({
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Link finding">
-            <Select value={findingId} onChange={(event) => setFindingId(event.target.value)}>
-              <option value="">No finding</option>
+            <Select
+              value={findingId || "none"}
+              onValueChange={(value) => setFindingId(value === "none" ? "" : value)}
+            >
+              <SelectItem value="none">No finding</SelectItem>
               {findings.map((finding) => (
-                <option key={finding.id} value={finding.id}>
+                <SelectItem key={finding.id} value={finding.id}>
                   {finding.code} · {finding.title}
-                </option>
+                </SelectItem>
               ))}
             </Select>
           </Field>
           <Field label="Link test case">
-            <Select value={testCaseId} onChange={(event) => setTestCaseId(event.target.value)}>
-              <option value="">No test case</option>
+            <Select
+              value={testCaseId || "none"}
+              onValueChange={(value) => setTestCaseId(value === "none" ? "" : value)}
+            >
+              <SelectItem value="none">No test case</SelectItem>
               {testCases.map((testCase) => (
-                <option key={testCase.id} value={testCase.id}>
+                <SelectItem key={testCase.id} value={testCase.id}>
                   {testCase.title}
-                </option>
+                </SelectItem>
               ))}
             </Select>
           </Field>

@@ -1,8 +1,9 @@
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { Field, Input, Textarea } from "@/components/ui/input";
+import { Select, SelectItem } from "@/components/ui/select";
 import { SeverityBadge } from "@/components/ui/badge";
 import { SectionTitle } from "@/components/layout/PageHeader";
 import { severityFor } from "@/lib/severity";
@@ -55,13 +56,19 @@ export function EngagementForm({
             <Input placeholder="CLIENT-2026-001" {...form.register("clientCode")} />
           </Field>
           <Field label="Status">
-            <Select {...form.register("status")}>
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="in_review">In review</option>
-              <option value="completed">Completed</option>
-              <option value="archived">Archived</option>
-            </Select>
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="in_review">In review</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </Select>
+              )}
+            />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Start date">
@@ -110,13 +117,19 @@ export function EngagementForm({
             className="grid gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3 sm:grid-cols-[130px_1fr_auto_1fr_auto] sm:items-end"
           >
             <Field label="Kind">
-              <Select {...form.register(`scopeAssets.${index}.kind`)}>
-                {scopeKinds.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {kind.replace("_", " ")}
-                  </option>
-                ))}
-              </Select>
+              <Controller
+                control={form.control}
+                name={`scopeAssets.${index}.kind`}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    {scopeKinds.map((kind) => (
+                      <SelectItem key={kind} value={kind}>
+                        {kind.replace("_", " ")}
+                      </SelectItem>
+                    ))}
+                  </Select>
+                )}
+              />
             </Field>
             <Field label="Value" error={form.formState.errors.scopeAssets?.[index]?.value?.message}>
               <Input

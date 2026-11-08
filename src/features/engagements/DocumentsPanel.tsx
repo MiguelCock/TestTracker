@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Select } from "@/components/ui/input";
+import { Field } from "@/components/ui/input";
+import { Select, SelectItem } from "@/components/ui/select";
 import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
 import { api } from "@/lib/api";
 import { base64ToBytes } from "@/lib/base64";
@@ -258,8 +259,8 @@ function GenerateDocumentDialog({
         <Field label="Document">
           <Select
             value={kind}
-            onChange={(event) => {
-              const next = event.target.value as DocumentKind;
+            onValueChange={(value) => {
+              const next = value as DocumentKind;
               setKind(next);
               if (!supportsXlsx(next) && format === "xlsx") {
                 setFormat("pdf");
@@ -267,9 +268,9 @@ function GenerateDocumentDialog({
             }}
           >
             {(Object.keys(kindLabel) as DocumentKind[]).map((value) => (
-              <option key={value} value={value}>
+              <SelectItem key={value} value={value}>
                 {kindLabel[value]}
-              </option>
+              </SelectItem>
             ))}
           </Select>
         </Field>
@@ -281,13 +282,10 @@ function GenerateDocumentDialog({
               : "PDF and DOCX are available for this document type."
           }
         >
-          <Select
-            value={format}
-            onChange={(event) => setFormat(event.target.value as DocumentFormat)}
-          >
-            <option value="pdf">PDF</option>
-            <option value="docx">DOCX</option>
-            {supportsXlsx(kind) && <option value="xlsx">XLSX</option>}
+          <Select value={format} onValueChange={(value) => setFormat(value as DocumentFormat)}>
+            <SelectItem value="pdf">PDF</SelectItem>
+            <SelectItem value="docx">DOCX</SelectItem>
+            {supportsXlsx(kind) && <SelectItem value="xlsx">XLSX</SelectItem>}
           </Select>
         </Field>
         {error && <ErrorBlock message={error} />}

@@ -65,6 +65,8 @@ export const api = {
   updateTestCase: (id: string, input: TestCaseInput) =>
     ipc<TestCase>("update_test_case", { id, input }),
   deleteTestCase: (id: string) => ipc<DeleteResult>("delete_test_case", { id }),
+  reorderTestCases: (engagementId: string, orderedIds: string[]) =>
+    ipc<TestCase[]>("reorder_test_cases", { engagementId, orderedIds }),
   createTestCasesFromTemplates: (engagementId: string, templateIds: string[]) =>
     ipc<TestCase[]>("create_test_cases_from_templates", { engagementId, templateIds }),
 

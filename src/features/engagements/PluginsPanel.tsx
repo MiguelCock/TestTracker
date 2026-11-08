@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
+import { Select, SelectItem } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import type { PluginFindingSuggestion, PluginRunResult } from "@/types";
 
@@ -82,17 +83,13 @@ export function PluginsPanel({ engagementId }: { engagementId: string }) {
         </div>
         {enabled.length > 0 && (
           <div className="flex items-center gap-2">
-            <select
-              value={selectedId}
-              onChange={(event) => setPluginId(event.target.value)}
-              className="h-9 rounded-lg border border-slate-700 bg-slate-950/60 px-3 text-xs text-slate-200"
-            >
+            <Select value={selectedId} onValueChange={setPluginId} className="h-9 w-64 text-xs">
               {enabled.map((plugin) => (
-                <option key={plugin.id} value={plugin.id}>
+                <SelectItem key={plugin.id} value={plugin.id}>
                   {plugin.name} · v{plugin.version}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+            </Select>
             <Button size="sm" onClick={() => run.mutate()} disabled={run.isPending || !selectedId}>
               {run.isPending ? <Spinner /> : <Play className="h-3.5 w-3.5" />}
               Run plugin

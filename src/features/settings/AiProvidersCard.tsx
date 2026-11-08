@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Input, Select } from "@/components/ui/input";
+import { Field, Input } from "@/components/ui/input";
+import { Select, SelectItem } from "@/components/ui/select";
 import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
@@ -283,8 +284,8 @@ function AddProviderDialog({
         <Field label="Provider type">
           <Select
             value={kind}
-            onChange={(event) => {
-              const next = event.target.value as AiProviderKind;
+            onValueChange={(value) => {
+              const next = value as AiProviderKind;
               setKind(next);
               setBaseUrl(kindPlaceholder[next]);
               setModels([]);
@@ -293,9 +294,9 @@ function AddProviderDialog({
             }}
           >
             {(Object.keys(kindLabel) as AiProviderKind[]).map((value) => (
-              <option key={value} value={value}>
+              <SelectItem key={value} value={value}>
                 {kindLabel[value]}
-              </option>
+              </SelectItem>
             ))}
           </Select>
         </Field>
@@ -331,16 +332,14 @@ function AddProviderDialog({
         </Field>
         {modelsLoaded && models.length > 0 && (
           <Select
-            value=""
-            onChange={(event) => {
-              if (event.target.value) setModel(event.target.value);
-            }}
+            value={models.includes(model) ? model : ""}
+            onValueChange={setModel}
+            placeholder="Choose an installed model…"
           >
-            <option value="">Choose an installed model…</option>
             {models.map((available) => (
-              <option key={available} value={available}>
+              <SelectItem key={available} value={available}>
                 {available}
-              </option>
+              </SelectItem>
             ))}
           </Select>
         )}

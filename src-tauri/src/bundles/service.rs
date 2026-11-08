@@ -265,7 +265,7 @@ pub fn import_bundle(
                 status: test_case.status,
                 result: test_case.result.clone(),
                 notes: test_case.notes.clone(),
-                assignee: test_case.assignee.clone(),
+                assignee: actor.display_name.clone(),
                 sort_order: test_case.sort_order,
             };
             let created = db::test_cases::create(&tx, &input, now)?;

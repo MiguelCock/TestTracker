@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { Field, Input, Textarea } from "@/components/ui/input";
+import { Select, SelectItem } from "@/components/ui/select";
 import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
 import { api } from "@/lib/api";
 import { useSession } from "@/hooks/useSession";
@@ -337,23 +338,23 @@ function SignOffDialog({
     >
       <div className="space-y-4">
         <Field label="Snapshot">
-          <Select value={snapshotId} onChange={(event) => setSnapshotId(event.target.value)}>
+          <Select value={snapshotId} onValueChange={setSnapshotId}>
             {snapshots.map((snapshot) => (
-              <option key={snapshot.id} value={snapshot.id}>
+              <SelectItem key={snapshot.id} value={snapshot.id}>
                 v{snapshot.version} · {snapshot.label || "Untitled"} ·{" "}
                 {truncate(snapshot.contentHash, 10)}
-              </option>
+              </SelectItem>
             ))}
           </Select>
         </Field>
         <Field label="Decision">
           <Select
             value={decision}
-            onChange={(event) => setDecision(event.target.value as ApprovalDecision)}
+            onValueChange={(value) => setDecision(value as ApprovalDecision)}
           >
-            <option value="approved">Approved</option>
-            <option value="changes_requested">Changes requested</option>
-            <option value="rejected">Rejected</option>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="changes_requested">Changes requested</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
           </Select>
         </Field>
         <Field label="Comment">

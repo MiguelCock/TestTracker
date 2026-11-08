@@ -43,6 +43,8 @@ pub async fn create_test_case(
         }
         let actor = session.profile.id.clone();
         let now = db::now();
+        let mut input = input;
+        input.assignee = session.profile.display_name.clone();
         let tx = session.conn.transaction()?;
         let test_case = db::test_cases::create(&tx, &input, &now)?;
         audit::append(
@@ -82,6 +84,8 @@ pub async fn update_test_case(
         }
         let actor = session.profile.id.clone();
         let now = db::now();
+        let mut input = input;
+        input.assignee = session.profile.display_name.clone();
         let tx = session.conn.transaction()?;
         let test_case = db::test_cases::update(&tx, &id, &input, &now)?;
         audit::append(
@@ -163,7 +167,7 @@ pub async fn create_test_cases_from_templates(
                 status: TestCaseStatus::NotStarted,
                 result: String::new(),
                 notes: String::new(),
-                assignee: String::new(),
+                assignee: session.profile.display_name.clone(),
                 sort_order: index as i64,
             };
             created.push(db::test_cases::create(&tx, &input, &now)?);
@@ -182,6 +186,37 @@ pub async fn create_test_cases_from_templates(
         )?;
         tx.commit()?;
         Ok(created)
+    })
+}
+
+#[tauri::command]
+pub async fn reorder_test_cases(
+    state: State<'_, AppState>,
+    engagement_id: String,
+    ordered_ids: Vec<String>,
+) -> AppResult<Vec<TestCase>> {
+    state.with_session(|session| {
+        if !rbac::can_write(session.profile.role) {
+            return Err(AppError::PermissionDenied);
+        }
+        let now = db::now();
+        let tx = session.conn.transaction()?;
+        db::test_cases::reorder(&tx, &engagement_id, &ordered_ids, &now)?;
+        audit::append(
+            &tx,
+            audit::AuditEntry {
+                engagement_id: Some(&engagement_id),
+                actor_id: Some(&session.profile.id),
+                action: "test_case.reordered",
+                entity_type: "engagement",
+                entity_id: Some(&engagement_id),
+                metadata: serde_json::json!({ "count": ordered_ids.len() }),
+                created_at: &now,
+            },
+        )?;
+        let result = db::test_cases::list(&tx, &engagement_id)?;
+        tx.commit()?;
+        Ok(result)
     })
 }
 

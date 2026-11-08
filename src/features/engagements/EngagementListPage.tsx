@@ -5,7 +5,8 @@ import { Plus, Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EngagementStatusBadge } from "@/components/ui/badge";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
+import { Select, SelectItem } from "@/components/ui/select";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState, ErrorBlock, LoadingBlock } from "@/components/ui/states";
 import { api } from "@/lib/api";
@@ -63,15 +64,15 @@ export function EngagementListPage() {
         </div>
         <Select
           value={status}
-          onChange={(event) => setStatus(event.target.value as EngagementStatus | "all")}
+          onValueChange={(value) => setStatus(value as EngagementStatus | "all")}
           className="w-44"
         >
-          <option value="all">All statuses</option>
-          <option value="draft">Draft</option>
-          <option value="active">Active</option>
-          <option value="in_review">In review</option>
-          <option value="completed">Completed</option>
-          <option value="archived">Archived</option>
+          <SelectItem value="all">All statuses</SelectItem>
+          <SelectItem value="draft">Draft</SelectItem>
+          <SelectItem value="active">Active</SelectItem>
+          <SelectItem value="in_review">In review</SelectItem>
+          <SelectItem value="completed">Completed</SelectItem>
+          <SelectItem value="archived">Archived</SelectItem>
         </Select>
       </div>
 

@@ -52,6 +52,7 @@ pub fn run() {
             commands::test_cases::update_test_case,
             commands::test_cases::delete_test_case,
             commands::test_cases::create_test_cases_from_templates,
+            commands::test_cases::reorder_test_cases,
             commands::findings::list_findings,
             commands::findings::create_finding,
             commands::findings::update_finding,
