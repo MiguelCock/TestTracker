@@ -18,6 +18,8 @@ Implemented foundations:
   document storage.
 - AI provider connections (Ollama, OpenAI-compatible, Anthropic, Azure OpenAI) with encrypted
   credentials, per-engagement policy, redaction preview, one-time consent, and audit logging.
+- Server-side agent skills with scoped context, validated JSON proposals, and explicit apply
+  approval for summaries, assumptions, tests, test approaches, and findings.
 - Signed read-only WebAssembly plugins with a trusted-publisher store, capability declarations, and
   a fuel-/memory-limited runtime.
 - Passphrase-encrypted engagement bundles with signed manifests, hash verification, and logical

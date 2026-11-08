@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Download,
   Pencil,
+  Sparkles,
   ShieldAlert,
   Trash2,
   Users,
@@ -28,7 +29,8 @@ import { AiPanel } from "@/features/engagements/AiPanel";
 import { PluginsPanel } from "@/features/engagements/PluginsPanel";
 import { ExportBundleDialog } from "@/features/bundles/ExportBundleDialog";
 import { AuditPanel } from "@/features/engagements/AuditPanel";
-import type { EngagementDetail } from "@/types";
+import { AgentSkillDialog } from "@/features/ai/AgentSkillDialog";
+import type { AgentSkill, EngagementDetail } from "@/types";
 
 export function EngagementDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +38,7 @@ export function EngagementDetailPage() {
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [agentSkill, setAgentSkill] = useState<AgentSkill | null>(null);
 
   const detail = useQuery({
     queryKey: ["engagement", id],
@@ -131,7 +134,7 @@ export function EngagementDetailPage() {
 
         <div className="mt-4">
           <TabsContent value="overview">
-            <OverviewPanel detail={detail.data} />
+            <OverviewPanel detail={detail.data} onDraft={setAgentSkill} />
           </TabsContent>
           <TabsContent value="tests">
             <TestTrackerPanel engagementId={id} />
@@ -169,17 +172,44 @@ export function EngagementDetailPage() {
           engagementName={engagement.name}
         />
       )}
+      {agentSkill && (
+        <AgentSkillDialog
+          open
+          onOpenChange={(next) => !next && setAgentSkill(null)}
+          engagementId={id}
+          skills={[agentSkill]}
+          onApplied={() => {
+            void queryClient.invalidateQueries({ queryKey: ["engagement", id] });
+            void queryClient.invalidateQueries({ queryKey: ["engagements"] });
+            void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+            void queryClient.invalidateQueries({ queryKey: ["audit", id] });
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function OverviewPanel({ detail }: { detail: EngagementDetail }) {
+function OverviewPanel({
+  detail,
+  onDraft,
+}: {
+  detail: EngagementDetail;
+  onDraft: (skill: AgentSkill) => void;
+}) {
   const { engagement, scopeAssets, risks, assumptions, contacts } = detail;
   return (
     <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
       <div className="space-y-4">
         <Card>
-          <CardHeader title="Application summary" />
+          <CardHeader
+            title="Application summary"
+            action={
+              <Button variant="ghost" size="sm" onClick={() => onDraft("application_summary")}>
+                <Sparkles className="h-3.5 w-3.5" /> Draft
+              </Button>
+            }
+          />
           <CardBody>
             {engagement.applicationSummary ? (
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
@@ -192,7 +222,14 @@ function OverviewPanel({ detail }: { detail: EngagementDetail }) {
         </Card>
 
         <Card>
-          <CardHeader title="Attack surface" />
+          <CardHeader
+            title="Attack surface"
+            action={
+              <Button variant="ghost" size="sm" onClick={() => onDraft("attack_surface")}>
+                <Sparkles className="h-3.5 w-3.5" /> Draft
+              </Button>
+            }
+          />
           <CardBody>
             {engagement.attackSurface ? (
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
@@ -291,7 +328,14 @@ function OverviewPanel({ detail }: { detail: EngagementDetail }) {
 
       <div className="space-y-4">
         <Card>
-          <CardHeader title="Assumptions" />
+          <CardHeader
+            title="Assumptions"
+            action={
+              <Button variant="ghost" size="sm" onClick={() => onDraft("assumptions")}>
+                <Sparkles className="h-3.5 w-3.5" /> Draft
+              </Button>
+            }
+          />
           <CardBody>
             {assumptions.length === 0 ? (
               <p className="text-xs text-slate-500">No assumptions recorded.</p>

@@ -465,3 +465,41 @@ export interface BundleImportResult {
   senderDisplayName: string;
   senderFingerprint: string;
 }
+
+export type AgentSkill =
+  | "application_summary"
+  | "attack_surface"
+  | "assumptions"
+  | "test_cases"
+  | "test_approach"
+  | "finding_draft";
+
+export interface AgentPreview {
+  consentId: string;
+  skill: AgentSkill;
+  targetId: string | null;
+  targetLabel: string | null;
+  providerName: string;
+  model: string;
+  policy: AiPolicy;
+  redactedPrompt: string;
+  redactionCount: number;
+  redactions: string[];
+  expiresInSeconds: number;
+  isLocal: boolean;
+}
+
+export interface AgentProposal {
+  proposalId: string;
+  skill: AgentSkill;
+  targetId: string | null;
+  payload: Record<string, unknown>;
+  expiresInSeconds: number;
+}
+
+export interface AgentApplyResult {
+  message: string;
+  createdTestCases: number;
+  createdFindings: number;
+  updatedEngagement: boolean;
+}

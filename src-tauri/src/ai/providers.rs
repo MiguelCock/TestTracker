@@ -5,7 +5,7 @@ use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use serde_json::{Value, json};
 use url::Url;
 
-use crate::ai::model::{AiPreview, AiProviderKind, ProviderReply};
+use crate::ai::model::{AiProviderKind, ProviderReply};
 use crate::error::{AppError, AppResult};
 
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
@@ -47,15 +47,24 @@ fn is_local_host(host: Option<&str>) -> bool {
     matches!(host, "localhost" | "127.0.0.1" | "::1")
 }
 
-pub async fn send(preview: &AiPreview) -> AppResult<ProviderReply> {
-    let endpoint = endpoint(preview.kind, &preview.base_url);
+pub struct ProviderRequest<'a> {
+    pub kind: AiProviderKind,
+    pub base_url: &'a str,
+    pub model: &'a str,
+    pub api_key: &'a str,
+    pub system_prompt: &'a str,
+    pub prompt: &'a str,
+}
+
+pub async fn send(request: &ProviderRequest<'_>) -> AppResult<ProviderReply> {
+    let endpoint = endpoint(request.kind, request.base_url);
     let body = request_body(
-        preview.kind,
-        &preview.model,
-        &preview.system_prompt,
-        &preview.prompt,
+        request.kind,
+        request.model,
+        request.system_prompt,
+        request.prompt,
     );
-    let local = is_local(preview.kind, &preview.base_url);
+    let local = is_local(request.kind, request.base_url);
     let mut builder = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .redirect(reqwest::redirect::Policy::none())
@@ -67,27 +76,27 @@ pub async fn send(preview: &AiPreview) -> AppResult<ProviderReply> {
         .build()
         .map_err(|_| AppError::External("Unable to initialize the provider client.".into()))?;
 
-    let mut request = client.post(&endpoint).json(&body);
-    let key = preview.api_key.as_str();
-    match preview.kind {
+    let mut http_request = client.post(&endpoint).json(&body);
+    let key = request.api_key;
+    match request.kind {
         AiProviderKind::Anthropic => {
-            request = request
+            http_request = http_request
                 .header("x-api-key", key)
                 .header("anthropic-version", "2023-06-01");
         }
         AiProviderKind::AzureOpenai => {
             if !key.is_empty() {
-                request = request.header("api-key", key);
+                http_request = http_request.header("api-key", key);
             }
         }
         AiProviderKind::OpenaiCompatible | AiProviderKind::Ollama => {
             if !key.is_empty() {
-                request = request.header(AUTHORIZATION, format!("Bearer {key}"));
+                http_request = http_request.header(AUTHORIZATION, format!("Bearer {key}"));
             }
         }
     }
 
-    let response = request
+    let response = http_request
         .header(CONTENT_TYPE, "application/json")
         .send()
         .await
@@ -108,7 +117,7 @@ pub async fn send(preview: &AiPreview) -> AppResult<ProviderReply> {
     }
     let value: Value = serde_json::from_slice(&bytes)
         .map_err(|_| AppError::External("The provider returned invalid JSON.".into()))?;
-    parse_response(preview.kind, &value)
+    parse_response(request.kind, &value)
 }
 
 fn provider_status_error(status: StatusCode, body: &[u8]) -> AppError {

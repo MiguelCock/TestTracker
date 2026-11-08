@@ -384,7 +384,16 @@ pub async fn send_ai_message(
         audit_failure(&state, &preview, &error);
         return Err(error);
     }
-    let reply = match providers::send(&preview).await {
+    let reply = match providers::send(&providers::ProviderRequest {
+        kind: preview.kind,
+        base_url: &preview.base_url,
+        model: &preview.model,
+        api_key: preview.api_key.as_str(),
+        system_prompt: &preview.system_prompt,
+        prompt: &preview.prompt,
+    })
+    .await
+    {
         Ok(reply) => reply,
         Err(error) => {
             audit_failure(&state, &preview, &error);

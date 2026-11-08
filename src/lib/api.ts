@@ -8,6 +8,10 @@ import type {
   AiProviderSummary,
   AiResponse,
   AddPluginPublisherInput,
+  AgentApplyResult,
+  AgentPreview,
+  AgentProposal,
+  AgentSkill,
   Approval,
   BundleExportResult,
   BundleImportResult,
@@ -123,6 +127,24 @@ export const api = {
     ipc<AiPolicy>("set_ai_policy", { engagementId, policy }),
   previewAiPrompt: (input: AiPromptInput) => ipc<AiPromptPreview>("preview_ai_prompt", { input }),
   sendAiMessage: (consentId: string) => ipc<AiResponse>("send_ai_message", { consentId }),
+
+  previewAgentSkill: (
+    engagementId: string,
+    providerId: string,
+    skill: AgentSkill,
+    targetId: string | null,
+    instructions: string,
+  ) =>
+    ipc<AgentPreview>("preview_agent_skill", {
+      engagementId,
+      providerId,
+      skill,
+      targetId,
+      instructions,
+    }),
+  runAgentSkill: (consentId: string) => ipc<AgentProposal>("run_agent_skill", { consentId }),
+  applyAgentProposal: (proposalId: string) =>
+    ipc<AgentApplyResult>("apply_agent_proposal", { proposalId }),
 
   listPluginPublishers: () => ipc<PluginPublisher[]>("list_plugin_publishers"),
   addPluginPublisher: (input: AddPluginPublisherInput) =>

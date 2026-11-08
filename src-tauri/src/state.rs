@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use rusqlite::Connection;
 use zeroize::Zeroizing;
 
+use crate::ai::agent::{AgentPreviewRecord, AgentProposalRecord};
 use crate::ai::model::AiPreview;
 use crate::domain::models::{ProfileSummary, SessionInfo};
 use crate::error::{AppError, AppResult};
@@ -28,6 +29,8 @@ pub struct AppState {
     pub db_path: PathBuf,
     session: Mutex<Option<UnlockedSession>>,
     ai_previews: Mutex<HashMap<String, AiPreview>>,
+    agent_previews: Mutex<HashMap<String, AgentPreviewRecord>>,
+    agent_proposals: Mutex<HashMap<String, AgentProposalRecord>>,
 }
 
 impl AppState {
@@ -40,6 +43,8 @@ impl AppState {
             db_path,
             session: Mutex::new(None),
             ai_previews: Mutex::new(HashMap::new()),
+            agent_previews: Mutex::new(HashMap::new()),
+            agent_proposals: Mutex::new(HashMap::new()),
         }
     }
 
@@ -91,6 +96,52 @@ impl AppState {
     pub fn clear_ai_previews(&self) {
         let mut previews = self.ai_previews.lock().unwrap_or_else(|e| e.into_inner());
         previews.clear();
+        let mut agent_previews = self
+            .agent_previews
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        agent_previews.clear();
+        let mut agent_proposals = self
+            .agent_proposals
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        agent_proposals.clear();
+    }
+
+    pub fn insert_agent_preview(&self, preview: AgentPreviewRecord) {
+        let mut previews = self
+            .agent_previews
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        previews.retain(|_, preview| !preview.is_expired());
+        previews.insert(preview.id.clone(), preview);
+    }
+
+    pub fn take_agent_preview(&self, id: &str) -> Option<AgentPreviewRecord> {
+        let mut previews = self
+            .agent_previews
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        previews.retain(|_, preview| !preview.is_expired());
+        previews.remove(id)
+    }
+
+    pub fn insert_agent_proposal(&self, proposal: AgentProposalRecord) {
+        let mut proposals = self
+            .agent_proposals
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        proposals.retain(|_, proposal| !proposal.is_expired());
+        proposals.insert(proposal.id.clone(), proposal);
+    }
+
+    pub fn take_agent_proposal(&self, id: &str) -> Option<AgentProposalRecord> {
+        let mut proposals = self
+            .agent_proposals
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        proposals.retain(|_, proposal| !proposal.is_expired());
+        proposals.remove(id)
     }
 
     pub fn with_session<T>(

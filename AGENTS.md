@@ -53,7 +53,7 @@ First Rust build is slow: `rusqlite` compiles bundled SQLCipher + vendored OpenS
 - Use `#![deny(unsafe_code)]` and avoid `unsafe` in app code. The only exception is the Linux WebKit DMABUF workaround in `main.rs`, which is explicitly allowed.
 - Do not enable the updater or distribution signing without real keys and an endpoint. Never commit signing keys; use CI secrets. Release artifacts are currently unsigned.
 
-Key files: `src-tauri/src/security/` (crypto, vault, identity, audit), `src-tauri/src/state.rs` (session/auto-lock), `src-tauri/src/db/` (schema/repos), `src-tauri/src/commands/` (IPC), `src/features/` (UI), `docs/` (architecture, threat model, data model, plugin SDK, AI policy).
+Key files: `src-tauri/src/security/` (crypto, vault, identity, audit), `src-tauri/src/state.rs` (session/auto-lock), `src-tauri/src/db/` (schema/repos), `src-tauri/src/commands/` (IPC, including `agent.rs`), `src/features/ai/` (agent dialogs), `src/features/` (UI), `docs/` (architecture, threat model, data model, plugin SDK, AI policy).
 
 ## Confidential material
 
@@ -71,7 +71,7 @@ Reading formats: `unzip -p file.xlsx xl/sharedStrings.xml`, `pdftotext -layout f
 
 ## Testing and runtime gotchas
 
-- Rust unit tests cover crypto, vault, identity, audit chain, severity, RBAC, AI redaction/provider parsing/URL policy, plugin package signing/ZIP safety/WASM fuel/memory/export checks, bundle encryption/ZIP validation, and a full encrypted-DB flow including snapshots/approvals (`src-tauri/src/test_flow.rs`). Add tests for every new security or domain rule.
+- Rust unit tests cover crypto, vault, identity, audit chain, severity, RBAC, AI redaction/provider parsing/URL policy/agent proposal validation, plugin package signing/ZIP safety/WASM fuel/memory/export checks, bundle encryption/ZIP validation, and a full encrypted-DB flow including snapshots/approvals (`src-tauri/src/test_flow.rs`). Add tests for every new security or domain rule.
 - Frontend tests: Vitest + Testing Library (`src/test/`). Use synthetic fixtures only.
 - Before finishing a task run `bun run check`, `cargo clippy ... -- -D warnings`, `cargo test`, `cargo audit`, and `bun audit`.
 - Do not use `reference/` data in automated tests or CI.

@@ -3,7 +3,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowDown, ArrowUp, ListChecks, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ListChecks,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +22,7 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
 import { api } from "@/lib/api";
 import { testCaseStatusLabel } from "@/lib/labels";
+import { AgentSkillDialog } from "@/features/ai/AgentSkillDialog";
 import type { TestCase, TestCaseInput, TestCaseStatus, TestCaseTemplate } from "@/types";
 
 export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
@@ -20,6 +30,8 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [editing, setEditing] = useState<TestCase | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
+  const [agentTarget, setAgentTarget] = useState<TestCase | null>(null);
+  const [agentGenerateOpen, setAgentGenerateOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TestCaseStatus | "all">("all");
   const testCases = useQuery({
@@ -32,6 +44,8 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
     void queryClient.invalidateQueries({ queryKey: ["engagement", engagementId] });
     void queryClient.invalidateQueries({ queryKey: ["engagements"] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    void queryClient.invalidateQueries({ queryKey: ["findings", engagementId] });
+    void queryClient.invalidateQueries({ queryKey: ["audit", engagementId] });
   };
 
   const update = useMutation({
@@ -86,6 +100,9 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setAgentGenerateOpen(true)}>
+            <Sparkles className="h-3.5 w-3.5" /> Generate tests
+          </Button>
           <Button variant="secondary" size="sm" onClick={() => setTemplatesOpen(true)}>
             <ListChecks className="h-3.5 w-3.5" /> From templates
           </Button>
@@ -229,6 +246,14 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label="Draft with AI"
+                          onClick={() => setAgentTarget(testCase)}
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           aria-label="Move test case up"
                           disabled={!canReorder || index === 0 || reorder.isPending}
                           onClick={() => move(index, -1)}
@@ -278,6 +303,33 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
         </Card>
       )}
 
+      {agentGenerateOpen && (
+        <AgentSkillDialog
+          open
+          onOpenChange={(next) => !next && setAgentGenerateOpen(false)}
+          engagementId={engagementId}
+          skills={["test_cases"]}
+          onApplied={() => {
+            invalidate();
+            setAgentGenerateOpen(false);
+          }}
+        />
+      )}
+      {agentTarget && (
+        <AgentSkillDialog
+          key={agentTarget.id}
+          open
+          onOpenChange={(next) => !next && setAgentTarget(null)}
+          engagementId={engagementId}
+          skills={["test_approach", "finding_draft"]}
+          targetId={agentTarget.id}
+          targetLabel={`${agentTarget.title}${agentTarget.category ? ` · ${agentTarget.category}` : ""}`}
+          onApplied={() => {
+            invalidate();
+            setAgentTarget(null);
+          }}
+        />
+      )}
       <TemplatePickerDialog
         open={templatesOpen}
         onOpenChange={setTemplatesOpen}

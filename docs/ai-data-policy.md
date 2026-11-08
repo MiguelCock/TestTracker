@@ -62,15 +62,16 @@ organization-specific rules are planned.
 
 ## Logging
 
-- Audit event per preview, successful call, and failed call: provider, model, purpose, redaction
-  count, prompt hash, response hash, and token usage.
+- Audit event per preview, successful call, proposal, applied action, and failure: provider, model,
+  skill/purpose, redaction count, prompt hash, response hash, and token usage.
 - Full prompt/response retention is not implemented in v1; the default keeps hashes and metadata only.
 - Provider keys are encrypted with the master key and never exposed to the webview.
 - Usage and cost budgets are planned.
 
 ## Safety
 
-- AI output is untrusted. Findings and report text are drafts until the user accepts them.
+- AI output is untrusted. Agent proposals are drafts until the user explicitly applies them; no
+  write occurs automatically.
 - The system prompt labels pasted content as untrusted data, but prompt injection remains a risk.
 - Tool calls, MCP, and automatic data access are not implemented in v1.
 - No automatic execution of generated scripts.

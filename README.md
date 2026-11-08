@@ -22,8 +22,9 @@ Built with Tauri 2, Rust, React 19, and TypeScript.
   locally.
 - **Document generation** — test plan, test-case tracker, findings register, executive summary, and
   technical report as PDF, DOCX, or XLSX. Generated files are encrypted at rest.
-- **AI assistant** — local and cloud provider connections, per-engagement policy, redaction preview,
-  one-time consent, and audit logging. Local-only is the default.
+- **AI assistant and agent skills** — provider connections, per-engagement policy, redaction
+  preview, one-time consent, and audit logging. Agent skills draft summaries, assumptions, tests,
+  test approaches, and findings with explicit apply approval. Local-only is the default.
 - **Signed plugins** — read-only WebAssembly modules from trusted publishers, executed in a
   fuel- and memory-limited sandbox with declared capabilities.
 - **Encrypted bundles** — passphrase-encrypted `.ttbundle` export/import for whole engagements,
@@ -121,6 +122,9 @@ Open an engagement to access its tabs.
   five minutes.
 - Responses are drafts and are not saved to the engagement. The audit log stores provider, model,
   purpose, prompt/response hashes, token usage, and redaction count — not message content.
+- Agent skills are available on the engagement overview (summary, attack surface, assumptions), the
+  test tracker (**Generate tests**, and **AI draft** per test for approach or finding). Each skill
+  previews the server-built context and requires an explicit **Apply**. See `docs/ai-agent.md`.
 - Redaction is best-effort. Local-only permits localhost endpoints, which may themselves proxy to a
   cloud service; use a trusted local setup.
 - Consumer AI subscriptions generally do not expose API access. Use official APIs, cloud accounts,
@@ -192,6 +196,7 @@ minutes of inactivity.
 - The database is encrypted with SQLCipher; evidence blobs and generated documents are encrypted with per-engagement keys.
 - AI provider keys are encrypted with the vault key and only decrypted in memory for an approved request.
 - AI prompts require a redaction preview and a server-side one-time consent; cloud providers are blocked unless the engagement policy allows them.
+- Agent skills receive only scoped engagement context, return validated JSON, and cannot write until the user applies the proposal.
 - Plugins are signed by trusted publishers, verified on install, hash-checked before every run, and executed with no filesystem, network, or WASI access.
 - Bundles use Argon2id-derived keys and XChaCha20-Poly1305 encryption; manifests are Ed25519-signed and all files are hash-verified on import.
 - The audit log is append-only and hash-chained.
@@ -304,7 +309,7 @@ reference/           ignored, local-only source material
 
 - Full-vault encrypted backup/restore and optional multi-device sync.
 - Multiple local profiles and separation of duties.
-- AI tool calling, MCP integration, streaming, and optional encrypted prompt retention.
+- Multi-step AI tool loops, MCP integration, streaming, and optional encrypted prompt retention.
 - Plugin process runners, schema-driven UI contributions, and a plugin registry.
 
 ## Confidentiality
