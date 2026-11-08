@@ -1,0 +1,297 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download, FileOutput, FileSpreadsheet, FileText, Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
+import { Field, Select } from "@/components/ui/input";
+import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
+import { api } from "@/lib/api";
+import { base64ToBytes } from "@/lib/base64";
+import { formatBytes, formatDateTime } from "@/lib/format";
+import type { DocumentFormat, DocumentKind, GeneratedDocument } from "@/types";
+
+const kindLabel: Record<DocumentKind, string> = {
+  test_plan: "Test plan",
+  test_case_tracker: "Test case tracker",
+  findings_register: "Findings register",
+  executive_summary: "Executive summary",
+  technical_report: "Technical report",
+};
+
+const formatLabel: Record<DocumentFormat, string> = {
+  pdf: "PDF",
+  docx: "DOCX",
+  xlsx: "XLSX",
+};
+
+const formatTone: Record<DocumentFormat, "danger" | "info" | "success"> = {
+  pdf: "danger",
+  docx: "info",
+  xlsx: "success",
+};
+
+function supportsXlsx(kind: DocumentKind): boolean {
+  return kind === "test_case_tracker" || kind === "findings_register";
+}
+
+export function DocumentsPanel({ engagementId }: { engagementId: string }) {
+  const queryClient = useQueryClient();
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const documents = useQuery({
+    queryKey: ["documents", engagementId],
+    queryFn: () => api.listDocuments(engagementId),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.deleteDocument(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["documents", engagementId] });
+      void queryClient.invalidateQueries({ queryKey: ["audit", engagementId] });
+    },
+    onError: (mutationError) => setError(mutationError.message),
+  });
+
+  const download = async (item: GeneratedDocument) => {
+    setError(null);
+    setDownloading(item.id);
+    try {
+      const data = await api.getDocumentData(item.id);
+      const mime =
+        data.document.format === "pdf"
+          ? "application/pdf"
+          : data.document.format === "docx"
+            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      const blob = new Blob([base64ToBytes(data.dataBase64)], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = data.document.filename;
+      window.document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Download failed.");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-white">Documents</h2>
+          <p className="text-xs text-slate-500">
+            Generate reports from the current engagement data. Files are encrypted at rest.
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setGenerateOpen(true)}>
+          <Plus className="h-3.5 w-3.5" /> Generate document
+        </Button>
+      </div>
+
+      {error && <ErrorBlock message={error} />}
+      {documents.isLoading && <LoadingBlock label="Loading documents…" />}
+      {documents.isError && <ErrorBlock message={documents.error.message} />}
+
+      {documents.data && documents.data.length === 0 && (
+        <EmptyState
+          title="No documents generated"
+          description="Create a test plan, test-case tracker, findings register, executive summary, or technical report."
+          action={
+            <Button size="sm" onClick={() => setGenerateOpen(true)}>
+              <FileOutput className="h-3.5 w-3.5" /> Generate document
+            </Button>
+          }
+        />
+      )}
+
+      {documents.data && documents.data.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-800 bg-slate-950/40 text-[11px] uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Document</th>
+                  <th className="px-4 py-3 font-medium">Format</th>
+                  <th className="px-4 py-3 font-medium">Size</th>
+                  <th className="px-4 py-3 font-medium">Generated</th>
+                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {documents.data.map((document) => (
+                  <tr key={document.id} className="align-top">
+                    <td className="max-w-md px-4 py-3">
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5 text-slate-500">
+                          {document.format === "xlsx" ? (
+                            <FileSpreadsheet className="h-4 w-4" />
+                          ) : (
+                            <FileText className="h-4 w-4" />
+                          )}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium text-slate-200">
+                            {document.title}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {kindLabel[document.kind]} · {document.filename}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge tone={formatTone[document.format]}>
+                        {formatLabel[document.format]}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-400">
+                      {formatBytes(document.size)}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {formatDateTime(document.createdAt)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Download document"
+                          disabled={downloading === document.id}
+                          onClick={() => void download(document)}
+                        >
+                          {downloading === document.id ? (
+                            <Spinner />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Delete document"
+                          onClick={() => {
+                            if (window.confirm(`Delete "${document.filename}"?`)) {
+                              remove.mutate(document.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-slate-500" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {generateOpen && (
+        <GenerateDocumentDialog
+          open={generateOpen}
+          onOpenChange={setGenerateOpen}
+          engagementId={engagementId}
+          onGenerated={() => {
+            void queryClient.invalidateQueries({ queryKey: ["documents", engagementId] });
+            void queryClient.invalidateQueries({ queryKey: ["audit", engagementId] });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function GenerateDocumentDialog({
+  open,
+  onOpenChange,
+  engagementId,
+  onGenerated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  engagementId: string;
+  onGenerated: () => void;
+}) {
+  const [kind, setKind] = useState<DocumentKind>("technical_report");
+  const [format, setFormat] = useState<DocumentFormat>("pdf");
+  const [error, setError] = useState<string | null>(null);
+  const generate = useMutation({
+    mutationFn: () => api.generateDocument(engagementId, kind, format),
+    onSuccess: () => {
+      onGenerated();
+      onOpenChange(false);
+    },
+    onError: (mutationError) => setError(mutationError.message),
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setError(null);
+        onOpenChange(next);
+      }}
+      title="Generate document"
+      description="The document is rendered from the current engagement, tests, findings, and evidence metadata."
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => generate.mutate()} disabled={generate.isPending}>
+            {generate.isPending && <Spinner />}
+            Generate
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Document">
+          <Select
+            value={kind}
+            onChange={(event) => {
+              const next = event.target.value as DocumentKind;
+              setKind(next);
+              if (!supportsXlsx(next) && format === "xlsx") {
+                setFormat("pdf");
+              }
+            }}
+          >
+            {(Object.keys(kindLabel) as DocumentKind[]).map((value) => (
+              <option key={value} value={value}>
+                {kindLabel[value]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field
+          label="Format"
+          hint={
+            supportsXlsx(kind)
+              ? "XLSX is available for the tracker and findings register."
+              : "PDF and DOCX are available for this document type."
+          }
+        >
+          <Select
+            value={format}
+            onChange={(event) => setFormat(event.target.value as DocumentFormat)}
+          >
+            <option value="pdf">PDF</option>
+            <option value="docx">DOCX</option>
+            {supportsXlsx(kind) && <option value="xlsx">XLSX</option>}
+          </Select>
+        </Field>
+        {error && <ErrorBlock message={error} />}
+      </div>
+    </Dialog>
+  );
+}

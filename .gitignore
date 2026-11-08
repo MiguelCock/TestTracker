@@ -1,0 +1,47 @@
+# Confidential assessment source material (never commit)
+/reference/
+
+# Evidence, generated deliverables, and exports
+/evidence/
+/reports/
+/exports/
+*.ttbundle
+*.ttplugin
+
+# Application runtime data (should live outside the repo)
+vault.json
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Accidental root-level Office documents (source material belongs in reference/)
+/*.xlsx
+/*.xlsm
+/*.xls
+/*.docx
+/*.pdf
+
+# Node / frontend build output
+node_modules/
+/dist/
+/dev-dist/
+
+# Rust / Tauri build output
+/src-tauri/target/
+/src-tauri/gen/
+
+# Secrets and local state
+.env
+.env.*
+*.log
+~$*
+.DS_Store
+
+# Signing keys and generated plugin binaries
+*.key
+*.wasm

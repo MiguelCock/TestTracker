@@ -1,0 +1,62 @@
+[package]
+name = "testtracker"
+version = "0.1.0"
+description = "Secure penetration-testing engagement management"
+authors = ["TestTracker"]
+edition = "2024"
+default-run = "testtracker"
+
+[lib]
+name = "testtracker_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+rusqlite = { version = "0.41", default-features = false, features = [
+    "bundled-sqlcipher-vendored-openssl",
+    "cache",
+    "chrono",
+    "uuid",
+    "serde_json",
+] }
+argon2 = "0.6"
+chacha20poly1305 = "0.11"
+ed25519-dalek = "3"
+blake3 = "1.8"
+rand = "0.9"
+zeroize = { version = "1.9", features = ["derive"] }
+base64 = "0.22"
+hex = "0.4"
+typst = "0.15"
+typst-pdf = "0.15"
+typst-layout = "0.15"
+typst-kit = { version = "0.15", default-features = false, features = ["embedded-fonts"] }
+docx-rs = "0.4"
+rust_xlsxwriter = "0.102"
+reqwest = { version = "0.13", default-features = false, features = ["json", "default-tls"] }
+regex = "1"
+url = "2"
+wasmi = "2"
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+wat = "1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = 3
+panic = "abort"
+strip = true
+debug = false
+incremental = false
+overflow-checks = true

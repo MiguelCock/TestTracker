@@ -1,0 +1,10 @@
+{
+  "id": "com.example.scope-helper",
+  "name": "Scope Helper (example)",
+  "version": "1.0.0",
+  "publisherId": "com.example.publisher",
+  "description": "Example read-only plugin that suggests a test case.",
+  "runtime": "wasm",
+  "entry": "plugin.wasm",
+  "capabilities": ["engagement.read"]
+}

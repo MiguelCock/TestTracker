@@ -1,0 +1,13 @@
+[advisories]
+ignore = [
+  # quick-xml 0.38.4 comes from Typst's bibliography stack (citationberg).
+  # TestTracker generates Typst source itself and never parses untrusted XML or citations.
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
+  # zip 8.6.0 comes from docx-rs and is only used to write DOCX packages.
+  # TestTracker never extracts untrusted ZIP/DOCX archives.
+  "RUSTSEC-2026-0367",
+  "RUSTSEC-2026-0368",
+  "RUSTSEC-2026-0369",
+  "RUSTSEC-2026-0429",
+]
