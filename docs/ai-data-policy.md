@@ -73,14 +73,22 @@ organization-specific rules are planned.
 - AI output is untrusted. Agent proposals are drafts until the user explicitly applies them; no
   write occurs automatically.
 - The system prompt labels pasted content as untrusted data, but prompt injection remains a risk.
-- Tool calls, MCP, and automatic data access are not implemented in v1.
+- AI tool calls and automatic data access are not implemented in v1.
 - No automatic execution of generated scripts.
 - Responses are displayed as plain text and are never auto-applied to findings or reports.
 
 ## MCP
 
-MCP client/server support, tool calling, and streaming are planned. MCP servers will be untrusted:
-capabilities will be shown, approved, and audited; writes will require confirmation.
+TestTracker can run an optional local MCP **server** for external MCP-capable clients. It is off by
+default, binds only to loopback, and requires a bearer token. Read tools expose engagement metadata,
+scope, tests, findings, metrics, and a sanitized drafting context; contacts and evidence content are
+not exposed. `propose_*` tools only create in-memory drafts. The user must approve a draft in the
+desktop application before any write occurs. The token grants access to all engagements while the
+bridge is running; a connected client may be cloud-backed. See `docs/mcp.md`.
+
+MCP **client** support, connecting TestTracker's assistant to third-party MCP servers, tool loops,
+and streaming remain planned. External MCP servers will be untrusted: capabilities will be shown,
+approved, and audited; writes will require confirmation.
 
 ## Non-goals
 

@@ -6,7 +6,7 @@ Build **TestTracker**, an internal application that standardizes how penetration
 
 ## Current state
 
-Tauri 2 + React 19 + TypeScript desktop app, local-first and encrypted. Implemented: vault/key management, profiles, engagements, scope/risks/assumptions/contacts, test-case tracker with domain templates, structured findings, severity matrix, encrypted evidence store, immutable snapshots, Ed25519 sign-offs with hash verification, audit hash chain, auto-lock. Planned: documents, AI assistants, plugin SDK, encrypted bundles, multi-profile separation.
+Tauri 2 + React 19 + TypeScript desktop app, local-first and encrypted. Implemented: vault/key management, profiles, engagements, scope/risks/assumptions/contacts, test-case tracker with domain templates, structured findings, severity matrix, encrypted evidence store, immutable snapshots, Ed25519 sign-offs with hash verification, audit hash chain, auto-lock, document generation, AI providers/chat/agent skills, signed plugins, encrypted bundles, assessment import (XLSX/XLSM, DOCX, PDF, text), local MCP server bridge, and strict CSP. Planned: MCP client/tool calling, encrypted multi-profile separation.
 
 Use **Bun** (lockfile is `bun.lock`). Do not introduce npm/yarn/pnpm.
 
@@ -49,11 +49,12 @@ First Rust build is slow: `rusqlite` compiles bundled SQLCipher + vendored OpenS
 - No remote content, `eval`, or shell/HTTP Tauri plugins in the webview. Keep CSP strict and capabilities minimal. AI network calls happen in Rust only.
 - AI provider API keys are encrypted with the master key and never returned to the UI. Prompts require a server-held redacted preview and one-time consent; never add a command that sends an arbitrary frontend payload directly to a provider. Default policy is local-only; enforce policy in Rust on preview and again on send.
 - Plugins are untrusted. Verify the publisher signature at install, store and verify the WASM hash before execution, and keep the runtime free of WASI/filesystem/network imports. Plugin output is untrusted; never auto-apply it. Do not add arbitrary JavaScript/HTML plugin UI to the main webview.
+- The MCP server is opt-in, binds only to loopback, requires a bearer token, and exposes no direct write tools. All MCP proposals require in-app approval. Never log the token or full tool payloads. Stop the server and clear proposals on lock; do not extend the session from MCP calls.
 - Bundles are passphrase-encrypted with Argon2id + XChaCha20-Poly1305. Never weaken the KDF bounds, skip manifest signature verification, or import without checking every file hash and remapping identifiers. Bundles must create new records, never merge into existing engagements.
 - Use `#![deny(unsafe_code)]` and avoid `unsafe` in app code. The only exception is the Linux WebKit DMABUF workaround in `main.rs`, which is explicitly allowed.
 - Do not enable the updater or distribution signing without real keys and an endpoint. Never commit signing keys; use CI secrets. Release artifacts are currently unsigned.
 
-Key files: `src-tauri/src/security/` (crypto, vault, identity, audit), `src-tauri/src/state.rs` (session/auto-lock), `src-tauri/src/db/` (schema/repos), `src-tauri/src/commands/` (IPC, including `agent.rs`), `src/features/ai/` (agent dialogs), `src/features/` (UI), `docs/` (architecture, threat model, data model, plugin SDK, AI policy).
+Key files: `src-tauri/src/security/` (crypto, vault, identity, audit), `src-tauri/src/state.rs` (session/auto-lock), `src-tauri/src/mcp/` (local MCP bridge), `src-tauri/src/db/` (schema/repos), `src-tauri/src/commands/` (IPC, including `agent.rs` and `mcp.rs`), `src/features/ai/` and `src/features/mcp/` (UI), `docs/` (architecture, threat model, data model, plugin SDK, AI policy, MCP bridge).
 
 ## Confidential material
 
@@ -71,7 +72,7 @@ Reading formats: `unzip -p file.xlsx xl/sharedStrings.xml`, `pdftotext -layout f
 
 ## Testing and runtime gotchas
 
-- Rust unit tests cover crypto, vault, identity, audit chain, severity, RBAC, AI redaction/provider parsing/URL policy/agent proposal validation, plugin package signing/ZIP safety/WASM fuel/memory/export checks, bundle encryption/ZIP validation, and a full encrypted-DB flow including snapshots/approvals (`src-tauri/src/test_flow.rs`). Add tests for every new security or domain rule.
+- Rust unit tests cover crypto, vault, identity, audit chain, severity, RBAC, AI redaction/provider parsing/URL policy/agent proposal validation, plugin package signing/ZIP safety/WASM fuel/memory/export checks, bundle encryption/ZIP validation, MCP token/auth/approval/proposal behavior, and a full encrypted-DB flow including snapshots/approvals (`src-tauri/src/test_flow.rs`). Add tests for every new security or domain rule.
 - Frontend tests: Vitest + Testing Library (`src/test/`). Use synthetic fixtures only.
 - Before finishing a task run `bun run check`, `cargo clippy ... -- -D warnings`, `cargo test`, `cargo audit`, and `bun audit`.
 - Do not use `reference/` data in automated tests or CI.

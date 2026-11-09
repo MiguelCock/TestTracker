@@ -10,6 +10,7 @@ import { UnlockScreen } from "@/features/auth/UnlockScreen";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { EngagementDetailPage } from "@/features/engagements/EngagementDetailPage";
 import { EngagementListPage } from "@/features/engagements/EngagementListPage";
+import { McpPage } from "@/features/mcp/McpPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 
 export default function App() {
@@ -51,6 +52,7 @@ function Root() {
           <Route index element={<DashboardPage />} />
           <Route path="engagements" element={<EngagementListPage />} />
           <Route path="engagements/:id" element={<EngagementDetailPage />} />
+          <Route path="mcp" element={<McpPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

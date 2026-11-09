@@ -25,6 +25,12 @@ Built with Tauri 2, Rust, React 19, and TypeScript.
 - **AI assistant and agent skills** — provider connections, per-engagement policy, redaction
   preview, one-time consent, and audit logging. Agent skills draft summaries, assumptions, tests,
   test approaches, and findings with explicit apply approval. Local-only is the default.
+- **Assessment import** — create a new engagement from a previous XLSX/XLSM tracker, DOCX, PDF,
+  Markdown, JSON, or text assessment. Tracker spreadsheets are parsed deterministically; other
+  formats can use AI to produce a reviewable draft. The source file is not stored.
+- **Local MCP bridge** — opt-in, loopback-only Model Context Protocol server with a bearer token,
+  read tools, draft-only proposal tools, and in-app approval. It grants access to all engagements
+  while running and stops when the vault locks.
 - **Signed plugins** — read-only WebAssembly modules from trusted publishers, executed in a
   fuel- and memory-limited sandbox with declared capabilities.
 - **Encrypted bundles** — passphrase-encrypted `.ttbundle` export/import for whole engagements,
@@ -133,6 +139,21 @@ Open an engagement to access its tabs.
   Verify with `ollama list`. In the provider editor, **Load models** lists installed models. An
   HTTP 404 at `/api/chat` means the model is not installed; the app now shows the provider error.
 
+### MCP bridge
+
+- **MCP** in the sidebar controls an optional local MCP server. It is off by default and starts only
+  when you select **Start bridge**.
+- The server binds to `127.0.0.1` and requires a bearer token on every request. Reveal or regenerate
+  the token from the MCP page.
+- Read tools expose engagement metadata, scope, tests, findings, metrics, and a sanitized drafting
+  context. Contacts, evidence content, documents, and audit history are not exposed.
+- `propose_*` tools create pending drafts only. Review them under **Pending proposals** and select
+  **Approve** or **Reject**. Nothing is written automatically.
+- The token grants access to every engagement in the unlocked vault. Treat it as sensitive and stop
+  the bridge when finished. A connected MCP client may be cloud-backed.
+- The bridge stops on vault lock, auto-lock, app exit, or **Stop**. See `docs/mcp.md` for tool and
+  security details.
+
 ### Plugins
 
 - Add publisher Ed25519 public keys in **Settings → Plugins**.
@@ -143,6 +164,21 @@ Open an engagement to access its tabs.
   verified before each run.
 - See `examples/plugins/scope-helper/` and `docs/plugin-sdk.md` for the package format, ABI, and
   signing CLI.
+
+### Import a previous assessment
+
+- Select **Import assessment** on the Engagements page.
+- Choose an XLSX/XLSM tracker, DOCX, PDF, Markdown, JSON, or text file up to 25 MB.
+- Tracker spreadsheets with recognizable headers are parsed deterministically into an engagement
+  draft. Review the parsed tests and findings before applying.
+- For other formats, choose an AI provider and preview the redacted extraction prompt. If the
+  provider is not local, confirm the cloud upload explicitly before the preview. The AI returns a
+  structured draft, never direct writes.
+- **Create engagement** imports the draft as a new engagement in draft status, with new identifiers,
+  the current user as owner/assignee, and linked findings when titles match.
+- Evidence files, snapshots, approvals, and audit history are not imported. Add evidence and verify
+  historical results before relying on the new records.
+- Full behavior and limits: `docs/imports.md`.
 
 ### Encrypted bundles
 
@@ -197,6 +233,8 @@ minutes of inactivity.
 - AI provider keys are encrypted with the vault key and only decrypted in memory for an approved request.
 - AI prompts require a redaction preview and a server-side one-time consent; cloud providers are blocked unless the engagement policy allows them.
 - Agent skills receive only scoped engagement context, return validated JSON, and cannot write until the user applies the proposal.
+- The MCP bridge binds only to loopback, requires a bearer token, validates Host/Origin, exposes no direct write tools, and stops on vault lock.
+- Assessment import treats document text as untrusted, uses the redaction pipeline for AI prompts, requires explicit cloud consent for non-local providers, and only writes after draft approval.
 - Plugins are signed by trusted publishers, verified on install, hash-checked before every run, and executed with no filesystem, network, or WASI access.
 - Bundles use Argon2id-derived keys and XChaCha20-Poly1305 encryption; manifests are Ed25519-signed and all files are hash-verified on import.
 - The audit log is append-only and hash-chained.
@@ -299,6 +337,7 @@ src-tauri/src/
   domain/            models, severity, RBAC, signing
   plugins/           manifest, package signing, WASM runtime
   security/          crypto, vault, identity, audit
+  mcp/               local MCP bridge, token auth, tools, approvals
   bin/ttplugin.rs    plugin signing CLI
   state.rs           session, auto-lock, AI consent
 docs/                architecture, threat model, data model, plugin SDK, AI policy
@@ -309,7 +348,8 @@ reference/           ignored, local-only source material
 
 - Full-vault encrypted backup/restore and optional multi-device sync.
 - Multiple local profiles and separation of duties.
-- Multi-step AI tool loops, MCP integration, streaming, and optional encrypted prompt retention.
+- MCP client support for external tool servers, multi-step AI tool loops, streaming, and optional
+  encrypted prompt retention.
 - Plugin process runners, schema-driven UI contributions, and a plugin registry.
 
 ## Confidentiality

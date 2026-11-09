@@ -6,6 +6,7 @@ pub mod engagements;
 pub mod evidence;
 pub mod findings;
 pub mod imports;
+pub mod mcp;
 pub mod plugins;
 pub mod review;
 pub mod test_cases;

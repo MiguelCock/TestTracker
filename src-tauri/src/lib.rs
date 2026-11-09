@@ -8,6 +8,7 @@ mod documents;
 mod domain;
 mod error;
 mod imports;
+mod mcp;
 pub mod plugins;
 mod security;
 mod state;
@@ -97,6 +98,15 @@ pub fn run() {
             commands::imports::preview_import_ai,
             commands::imports::run_import_ai,
             commands::imports::apply_import_draft,
+            commands::mcp::mcp_status,
+            commands::mcp::mcp_start,
+            commands::mcp::mcp_stop,
+            commands::mcp::mcp_reveal_token,
+            commands::mcp::mcp_regenerate_token,
+            commands::mcp::mcp_list_approvals,
+            commands::mcp::mcp_get_approval,
+            commands::mcp::mcp_approve,
+            commands::mcp::mcp_reject,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TestTracker");

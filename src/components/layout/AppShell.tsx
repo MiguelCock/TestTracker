@@ -1,8 +1,10 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { FolderKanban, LayoutDashboard, Lock, Settings, ShieldCheck } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { FolderKanban, LayoutDashboard, Lock, Network, Settings, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAutoLock } from "@/hooks/useAutoLock";
 import { useLockVault } from "@/hooks/useSession";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { initials } from "@/lib/format";
 import { roleLabel } from "@/lib/labels";
@@ -11,13 +13,21 @@ import type { SessionInfo } from "@/types";
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/engagements", label: "Engagements", icon: FolderKanban, end: false },
+  { to: "/mcp", label: "MCP", icon: Network, end: false },
   { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];
 
 export function AppShell({ session }: { session: SessionInfo }) {
   useAutoLock(true, session.autoLockSeconds);
   const lock = useLockVault();
+  const mcp = useQuery({
+    queryKey: ["mcp-status"],
+    queryFn: api.mcpStatus,
+    refetchInterval: 5_000,
+    retry: false,
+  });
   const profile = session.profile;
+  const mcpPending = mcp.data?.running ? mcp.data.pendingCount : 0;
 
   return (
     <div className="flex min-h-full bg-slate-950">
@@ -51,6 +61,11 @@ export function AppShell({ session }: { session: SessionInfo }) {
             >
               <Icon className="h-4 w-4" />
               {label}
+              {to === "/mcp" && mcpPending > 0 && (
+                <span className="ml-auto rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                  {mcpPending}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

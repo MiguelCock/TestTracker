@@ -36,6 +36,10 @@ import type {
   ImportDraftResult,
   ImportExtraction,
   ImportPreview,
+  McpApproval,
+  McpApprovalResult,
+  McpApprovalStatus,
+  McpStatus,
   PluginPublisher,
   PluginRunResult,
   PluginSummary,
@@ -188,4 +192,14 @@ export const api = {
   runImportAi: (consentId: string) => ipc<ImportDraftResult>("run_import_ai", { consentId }),
   applyImportDraft: (draftId: string) => ipc<ImportApplyResult>("apply_import_draft", { draftId }),
 
+  mcpStatus: () => ipc<McpStatus>("mcp_status"),
+  mcpStart: (port: number | null) => ipc<McpStatus>("mcp_start", { port }),
+  mcpStop: () => ipc<McpStatus>("mcp_stop"),
+  mcpRevealToken: () => ipc<string>("mcp_reveal_token"),
+  mcpRegenerateToken: () => ipc<string>("mcp_regenerate_token"),
+  mcpListApprovals: () => ipc<McpApproval[]>("mcp_list_approvals"),
+  mcpGetApproval: (approvalId: string) =>
+    ipc<McpApprovalStatus>("mcp_get_approval", { approvalId }),
+  mcpApprove: (approvalId: string) => ipc<McpApprovalResult>("mcp_approve", { approvalId }),
+  mcpReject: (approvalId: string) => ipc<McpApprovalStatus>("mcp_reject", { approvalId }),
 };

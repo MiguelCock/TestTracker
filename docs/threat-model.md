@@ -7,7 +7,7 @@
 - Findings, severity, remediation, and retest status.
 - Reviewer approvals and sign-offs.
 - Audit history and version history.
-- Provider credentials and signing private keys.
+- Provider credentials, the MCP bearer token, and signing private keys.
 - The integrity of the local database and generated reports.
 
 ## Adversaries
@@ -18,6 +18,8 @@
 - Prompt-injection content inside evidence or imported engagement data.
 - A supply-chain attacker in npm, Cargo, Tauri, or the updater.
 - A local user making accidental or unauthorized changes.
+- A malicious local process or website attempting to reach a loopback MCP server.
+- A cloud-backed MCP client receiving data the user chose to expose.
 - A recipient of an exported bundle attempting to alter it.
 
 ## Trust boundaries
@@ -28,6 +30,8 @@
 3. **Rust → plugin sandbox.** Plugins are untrusted. Capabilities are host-mediated and audited.
 4. **Rust → AI providers.** Provider responses are untrusted. Mutations require user approval.
 5. **Device → bundle recipient.** Bundles are encrypted and signed; imports verify both.
+6. **External MCP client → local bridge.** The client is outside the trust boundary. It must present
+   the bearer token, and every proposal requires in-app approval before a write.
 
 ## Threats and mitigations
 
@@ -70,6 +74,9 @@
 - A compromised OS, keylogger, or memory scraper can capture the passphrase or decrypted data.
 - SQLCipher protects data at rest, not a running unlocked process.
 - Redaction can miss sensitive context; users must review AI payload previews.
+- The MCP token grants access to all engagements while the bridge runs. Any local process that
+  obtains it can read that data; a connected MCP client may send retrieved data off-device.
+- MCP prompt injection can influence connected models. Drafts remain untrusted and require review.
 - SSD wear-leveling can leave traces after deletion; crypto-shredding is the primary deletion
   control.
 - Third-party dependencies and the webview engine remain part of the attack surface.

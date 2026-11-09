@@ -316,10 +316,10 @@ pub fn parse_proposal(skill: AgentSkill, content: &str) -> AppResult<Value> {
         .ok_or_else(|| AppError::External("The agent did not return JSON.".into()))?;
     let payload: Value = serde_json::from_str(&cleaned[start..=end])
         .map_err(|_| AppError::External("The agent returned invalid JSON.".into()))?;
-    validate_payload(skill, payload)
+    validate_proposal_payload(skill, payload)
 }
 
-fn validate_payload(skill: AgentSkill, payload: Value) -> AppResult<Value> {
+pub fn validate_proposal_payload(skill: AgentSkill, payload: Value) -> AppResult<Value> {
     match skill {
         AgentSkill::ApplicationSummary | AgentSkill::AttackSurface => {
             let value = payload

@@ -26,6 +26,9 @@ Only the current `0.1.x` line is supported while the application is pre-release.
 - Plugins: trusted-publisher Ed25519 signatures, WASM hash verification, no WASI/filesystem/network
   imports, fuel/memory limits, suggestions only.
 - Bundles: Argon2id + XChaCha20-Poly1305, signed manifest, per-file hashes, new-engagement import.
+- MCP bridge: off by default, loopback-only, bearer token, Host/Origin validation, read/draft tools
+  only, explicit in-app approval for every proposal, stops on vault lock. The token grants access to
+  all engagements while running; treat it as a high-value local credential.
 
 ## Release status
 

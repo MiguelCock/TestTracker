@@ -48,7 +48,8 @@ what will be sent.
   metadata, not content.
 - No tool calls are automatically executed; every write requires **Apply**.
 - The current implementation performs one provider call per skill run. Multi-step tool loops and
-  MCP are planned.
+  external MCP client support are planned. Separately, the local MCP bridge exposes read tools and
+  draft-only proposals to external MCP clients; see `docs/mcp.md`.
 
 ## UI entry points
 
@@ -56,3 +57,13 @@ what will be sent.
 - Test tracker: **Generate tests** in the toolbar; **AI draft** on each row for test approach or a
   finding.
 - Provider selection and policy are shown inside the agent dialog. Local-only remains the default.
+
+## Assessment import
+
+**Import assessment** is a separate flow from engagement-scoped agent skills. It extracts text from
+a previous assessment (XLSX/XLSM, DOCX, PDF, Markdown, JSON, or text), builds a dedicated import
+prompt, and asks the provider for one JSON draft. There is no engagement yet, so the per-engagement
+AI policy does not apply; local providers are allowed, and non-local providers require an explicit
+cloud-consent checkbox before the preview is created. The redacted preview is still shown and
+consumed by the provider call. The returned draft is validated, held in memory, and only written
+after **Create engagement**. See `docs/imports.md`.

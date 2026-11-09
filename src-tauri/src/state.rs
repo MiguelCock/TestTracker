@@ -11,6 +11,7 @@ use crate::ai::model::AiPreview;
 use crate::domain::models::{ProfileSummary, SessionInfo};
 use crate::error::{AppError, AppResult};
 use crate::imports::model::{ImportDraftRecord, ImportExtractionRecord, ImportPreviewRecord};
+use crate::mcp::runtime::McpRuntime;
 use crate::security::crypto::KEY_LEN;
 use crate::security::vault;
 
@@ -35,6 +36,7 @@ pub struct AppState {
     import_extractions: Mutex<HashMap<String, ImportExtractionRecord>>,
     import_previews: Mutex<HashMap<String, ImportPreviewRecord>>,
     import_drafts: Mutex<HashMap<String, ImportDraftRecord>>,
+    pub mcp: McpRuntime,
 }
 
 impl AppState {
@@ -52,6 +54,7 @@ impl AppState {
             import_extractions: Mutex::new(HashMap::new()),
             import_previews: Mutex::new(HashMap::new()),
             import_drafts: Mutex::new(HashMap::new()),
+            mcp: McpRuntime::new(),
         }
     }
 
@@ -66,6 +69,7 @@ impl AppState {
         {
             *guard = None;
             self.clear_ai_previews();
+            self.mcp.stop();
         }
         let profile = guard.as_ref().map(|session| session.profile.clone());
         SessionInfo {
@@ -86,6 +90,7 @@ impl AppState {
         *guard = None;
         drop(guard);
         self.clear_ai_previews();
+        self.mcp.stop();
     }
 
     pub fn insert_ai_preview(&self, preview: AiPreview) {
@@ -223,6 +228,7 @@ impl AppState {
         if expired {
             *guard = None;
             self.clear_ai_previews();
+            self.mcp.stop();
         }
         let session = guard.as_mut().ok_or_else(|| {
             if expired {
@@ -234,6 +240,32 @@ impl AppState {
             }
         })?;
         session.last_activity = Instant::now();
+        action(session)
+    }
+
+    pub fn with_session_no_touch<T>(
+        &self,
+        action: impl FnOnce(&mut UnlockedSession) -> AppResult<T>,
+    ) -> AppResult<T> {
+        let mut guard = self.session.lock().unwrap_or_else(|e| e.into_inner());
+        let expired = guard
+            .as_ref()
+            .map(|session| session.last_activity.elapsed() > Duration::from_secs(AUTO_LOCK_SECONDS))
+            .unwrap_or(false);
+        if expired {
+            *guard = None;
+            self.clear_ai_previews();
+            self.mcp.stop();
+        }
+        let session = guard.as_mut().ok_or_else(|| {
+            if expired {
+                AppError::SessionExpired
+            } else if self.initialized() {
+                AppError::Locked
+            } else {
+                AppError::NotInitialized
+            }
+        })?;
         action(session)
     }
 }

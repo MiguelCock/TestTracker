@@ -601,3 +601,49 @@ export interface ImportApplyResult {
   findingCount: number;
 }
 
+export type McpApprovalState = "pending" | "approved" | "rejected" | "expired";
+
+export interface McpStatus {
+  running: boolean;
+  endpoint: string | null;
+  port: number;
+  hasToken: boolean;
+  pendingCount: number;
+  startedAt: string | null;
+}
+
+export interface McpApprovalResult {
+  message: string;
+  createdTestCases: number;
+  createdFindings: number;
+  updatedEngagement: boolean;
+}
+
+export interface McpApproval {
+  approvalId: string;
+  state: McpApprovalState;
+  engagementId: string;
+  engagementName: string;
+  skill: AgentSkill;
+  targetId: string | null;
+  targetLabel: string | null;
+  payload: Record<string, unknown>;
+  client: string | null;
+  createdAt: string;
+  expiresInSeconds: number;
+  result: McpApprovalResult | null;
+}
+
+export interface McpApprovalStatus {
+  approvalId: string;
+  state: McpApprovalState;
+  result: McpApprovalResult | null;
+  expiresInSeconds: number;
+}
+
+export interface McpProposalAccepted {
+  approvalId: string;
+  state: McpApprovalState;
+  expiresInSeconds: number;
+  message: string;
+}

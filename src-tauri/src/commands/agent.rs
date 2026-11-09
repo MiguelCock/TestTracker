@@ -283,7 +283,7 @@ pub async fn apply_agent_proposal(
     }
 }
 
-fn apply_proposal(
+pub(crate) fn apply_proposal(
     tx: &rusqlite::Transaction<'_>,
     proposal: &AgentProposalRecord,
     assignee: &str,
@@ -371,7 +371,12 @@ fn apply_proposal(
                 .target_id
                 .as_deref()
                 .ok_or_else(|| AppError::Validation("Missing target test case.".into()))?;
-            db::test_cases::get(tx, target_id)?;
+            let target_test = db::test_cases::get(tx, target_id)?;
+            if target_test.engagement_id != proposal.engagement_id {
+                return Err(AppError::Validation(
+                    "The target test case does not belong to this engagement.".into(),
+                ));
+            }
             let probability = payload_u8(&proposal.payload, "probability")?;
             let impact_score = payload_u8(&proposal.payload, "impactScore")?;
             let severity = severity_for(probability, impact_score)?;

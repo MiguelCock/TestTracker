@@ -20,6 +20,8 @@ Implemented foundations:
   credentials, per-engagement policy, redaction preview, one-time consent, and audit logging.
 - Server-side agent skills with scoped context, validated JSON proposals, and explicit apply
   approval for summaries, assumptions, tests, test approaches, and findings.
+- Optional local MCP server bridge with a loopback-only Streamable HTTP endpoint, bearer-token
+  authentication, read tools, draft-only proposal tools, and in-app approval.
 - Signed read-only WebAssembly plugins with a trusted-publisher store, capability declarations, and
   a fuel-/memory-limited runtime.
 - Passphrase-encrypted engagement bundles with signed manifests, hash verification, and logical
@@ -27,8 +29,8 @@ Implemented foundations:
 - Append-only, hash-chained audit events with verification.
 - Auto-lock and session expiry.
 
-Planned next: AI tool calling/MCP, plugin process runners and UI contributions, full-vault backup and
-multi-device sync, and multi-profile separation of duties.
+Planned next: MCP client/tool calling, plugin process runners and UI contributions, full-vault
+backup and multi-device sync, and multi-profile separation of duties.
 
 ## Layers and trust boundaries
 
@@ -40,6 +42,7 @@ Tauri core (Rust) — all trust decisions
    ├─ SQLCipher database + migrations
    ├─ crypto, vault, identity, audit
    ├─ AI gateway
+   ├─ MCP bridge (loopback HTTP, token, approval queue)
    ├─ WASM plugin host
    └─ document renderers (planned)
         │
@@ -97,6 +100,7 @@ src-tauri/           Rust core
   src/db/            migrations, repositories, seed templates
   src/domain/        models, enums, severity, RBAC
   src/security/      crypto, vault, identity, audit
+  src/mcp/           local MCP bridge, token auth, tools, approvals
   src/state.rs       process state and unlocked session
 docs/                architecture and security documentation
 reference/           ignored, local-only source material
@@ -130,6 +134,9 @@ cd src-tauri && cargo clippy --all-targets -- -D warnings
 - **Server-side AI consent**: the redacted prompt is stored in memory with a one-time token; the
   frontend cannot send an arbitrary payload after preview. Policy and provider existence are
   re-checked at send time.
+- **Local MCP bridge with no direct writes**: the MCP server binds to loopback, requires a bearer
+  token, validates Host/Origin, and exposes only read tools plus proposals. Proposals are memory
+  only until the user approves them in the desktop UI.
 - **Host-based locality**: local-only policy is decided by the provider URL host, not by provider
   type, so a remote Ollama endpoint still requires approved-cloud policy.
 - **Signed WASM plugins**: packages are Ed25519-signed over a BLAKE3 digest, installed only from
@@ -138,8 +145,9 @@ cd src-tauri && cargo clippy --all-targets -- -D warnings
 - **Encrypted bundles**: a passphrase-derived key (Argon2id) encrypts a ZIP payload with
   XChaCha20-Poly1305. The manifest is Ed25519-signed and lists BLAKE3 hashes for every file. Import
   creates a new engagement and remaps all identifiers; it never merges into existing data.
-- **No remote content in the webview** and a strict CSP. The only network calls will be explicit,
-  allowlisted AI provider requests from Rust (planned).
+- **No remote content in the webview** and a strict CSP. Outbound network calls are explicit,
+  allowlisted AI provider requests from Rust. The optional MCP bridge is an inbound loopback-only
+  listener with token authentication, not a webview network permission.
 - **Linux WebKit workaround**: `main.rs` sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` before Tauri
   initializes unless the user overrides it. This avoids a known WebKitGTK + Wayland/NVIDIA freeze.
   It is the only `unsafe` block in the application.

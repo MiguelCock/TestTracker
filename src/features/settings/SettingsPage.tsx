@@ -14,6 +14,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ErrorBlock, Spinner } from "@/components/ui/states";
 import { AiProvidersCard } from "@/features/settings/AiProvidersCard";
+import { McpCard } from "@/features/settings/McpCard";
 import { PluginsCard } from "@/features/settings/PluginsCard";
 import { useLockVault, useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
@@ -133,6 +134,8 @@ export function SettingsPage() {
       </div>
 
       <AiProvidersCard />
+
+      <McpCard />
 
       <PluginsCard />
 
