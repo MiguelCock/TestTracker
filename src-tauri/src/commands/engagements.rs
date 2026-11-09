@@ -145,7 +145,7 @@ pub async fn verify_audit_chain(state: State<'_, AppState>) -> AppResult<bool> {
     state.with_session(|session| audit::verify_chain(&session.conn))
 }
 
-fn validate_engagement(input: &EngagementInput) -> AppResult<()> {
+pub(crate) fn validate_engagement(input: &EngagementInput) -> AppResult<()> {
     let name = input.name.trim();
     if name.is_empty() || name.chars().count() > 200 {
         return Err(AppError::Validation(

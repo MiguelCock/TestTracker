@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Upload } from "lucide-react";
+import { FileUp, Plus, Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EngagementStatusBadge } from "@/components/ui/badge";
@@ -13,11 +13,13 @@ import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { EngagementDialog } from "@/features/engagements/EngagementDialog";
 import { ImportBundleDialog } from "@/features/bundles/ImportBundleDialog";
+import { ImportAssessmentDialog } from "@/features/engagements/ImportAssessmentDialog";
 import type { EngagementStatus } from "@/types";
 
 export function EngagementListPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<EngagementStatus | "all">("all");
   const engagements = useQuery({ queryKey: ["engagements"], queryFn: api.listEngagements });
@@ -42,6 +44,9 @@ export function EngagementListPage() {
         description="Scope, execute, and review penetration-testing engagements."
         actions={
           <>
+            <Button variant="secondary" onClick={() => setAssessmentOpen(true)}>
+              <FileUp className="h-4 w-4" /> Import assessment
+            </Button>
             <Button variant="secondary" onClick={() => setImportOpen(true)}>
               <Upload className="h-4 w-4" /> Import bundle
             </Button>
@@ -158,6 +163,9 @@ export function EngagementListPage() {
 
       <EngagementDialog open={createOpen} onOpenChange={setCreateOpen} />
       {importOpen && <ImportBundleDialog open={importOpen} onOpenChange={setImportOpen} />}
+      {assessmentOpen && (
+        <ImportAssessmentDialog open={assessmentOpen} onOpenChange={setAssessmentOpen} />
+      )}
     </div>
   );
 }

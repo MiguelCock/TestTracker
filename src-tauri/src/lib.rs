@@ -7,6 +7,7 @@ mod db;
 mod documents;
 mod domain;
 mod error;
+mod imports;
 pub mod plugins;
 mod security;
 mod state;
@@ -92,6 +93,10 @@ pub fn run() {
             commands::plugins::run_plugin,
             commands::bundles::export_bundle,
             commands::bundles::import_bundle,
+            commands::imports::extract_import_document,
+            commands::imports::preview_import_ai,
+            commands::imports::run_import_ai,
+            commands::imports::apply_import_draft,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TestTracker");

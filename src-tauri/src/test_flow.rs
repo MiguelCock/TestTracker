@@ -11,6 +11,11 @@ use crate::domain::models::{
 };
 use crate::domain::severity::severity_for;
 use crate::domain::signing::approval_message;
+use crate::imports::model::{
+    ImportContact, ImportDraft, ImportEngagement, ImportFinding, ImportRisk, ImportScopeAsset,
+    ImportTestCase,
+};
+use crate::imports::service::apply_draft;
 use crate::security::{audit, crypto, identity};
 
 #[test]
@@ -341,4 +346,95 @@ fn local_flow_persists_and_verifies() {
 
     let wrong_key = crypto::random_bytes::<32>();
     assert!(db::open_encrypted(&db_path, &wrong_key).is_err());
+}
+
+#[test]
+fn imports_assessment_into_new_engagement() {
+    let dir = tempdir().expect("tempdir");
+    let db_path = dir.path().join("imports.db");
+    let master = crypto::random_bytes::<32>();
+    let mut conn = db::open_encrypted(&db_path, &master).expect("open encrypted db");
+    db::apply_migrations(&mut conn).expect("migrate");
+
+    let profile_id = "profile-import";
+    let signing = identity::generate();
+    let (public_key, encrypted_private_key) =
+        identity::encrypt_signing_key(&master, profile_id, &signing).expect("encrypt identity");
+    db::profiles::insert(
+        &conn,
+        profile_id,
+        "Importer",
+        ProfileRole::Admin,
+        &public_key,
+        &encrypted_private_key,
+        "2026-01-01T00:00:00Z",
+    )
+    .expect("profile");
+
+    let draft = ImportDraft {
+        source_name: "synthetic.xlsx".into(),
+        source_format: "xlsx".into(),
+        engagement: ImportEngagement {
+            name: "Imported synthetic assessment".into(),
+            client_code: "SYN-002".into(),
+            start_date: "2026-01-01".into(),
+            end_date: "2026-01-05".into(),
+            application_summary: "Synthetic portal.".into(),
+            attack_surface: "API and web.".into(),
+        },
+        scope_assets: vec![ImportScopeAsset {
+            kind: "url".into(),
+            value: "https://app.example.test".into(),
+            in_scope: true,
+            notes: String::new(),
+        }],
+        risks: vec![ImportRisk {
+            title: "Imported risk".into(),
+            description: "Synthetic risk.".into(),
+            likelihood: 5,
+            impact: 5,
+            notes: String::new(),
+        }],
+        assumptions: vec!["Synthetic assumption.".into()],
+        contacts: vec![ImportContact {
+            name: "Synthetic Contact".into(),
+            role: "Owner".into(),
+            email: "contact@example.test".into(),
+            phone: String::new(),
+        }],
+        test_cases: vec![ImportTestCase {
+            title: "Check authorization".into(),
+            category: "Authorization".into(),
+            approach: "Replay requests as another user.".into(),
+            status: "done".into(),
+            result: "Blocked.".into(),
+            notes: String::new(),
+        }],
+        findings: vec![ImportFinding {
+            title: "Check authorization".into(),
+            description: "Synthetic finding.".into(),
+            impact: "Limited.".into(),
+            remediation: "Enforce authorization.".into(),
+            probability: 8,
+            impact_score: 7,
+            owasp: String::new(),
+            cwe: "CWE-639".into(),
+        }],
+    };
+    let now = "2026-01-06T00:00:00Z";
+    let tx = conn.transaction().expect("transaction");
+    let result = apply_draft(&tx, &draft, profile_id, "Importer", now).expect("apply draft");
+    tx.commit().expect("commit");
+
+    assert_eq!(result.test_case_count, 1);
+    assert_eq!(result.finding_count, 1);
+    assert_eq!(result.engagement_name, "Imported synthetic assessment");
+    let tests = db::test_cases::list(&conn, &result.engagement_id).expect("tests");
+    assert_eq!(tests.len(), 1);
+    assert_eq!(tests[0].status, TestCaseStatus::Done);
+    let findings = db::findings::list(&conn, &result.engagement_id).expect("findings");
+    assert_eq!(findings.len(), 1);
+    assert_eq!(findings[0].severity, Severity::Critical);
+    assert_eq!(findings[0].test_case_ids, vec![tests[0].id.clone()]);
+    assert!(audit::verify_chain(&conn).expect("audit chain"));
 }

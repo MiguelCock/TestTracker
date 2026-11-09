@@ -10,6 +10,7 @@ use crate::ai::agent::{AgentPreviewRecord, AgentProposalRecord};
 use crate::ai::model::AiPreview;
 use crate::domain::models::{ProfileSummary, SessionInfo};
 use crate::error::{AppError, AppResult};
+use crate::imports::model::{ImportDraftRecord, ImportExtractionRecord, ImportPreviewRecord};
 use crate::security::crypto::KEY_LEN;
 use crate::security::vault;
 
@@ -31,6 +32,9 @@ pub struct AppState {
     ai_previews: Mutex<HashMap<String, AiPreview>>,
     agent_previews: Mutex<HashMap<String, AgentPreviewRecord>>,
     agent_proposals: Mutex<HashMap<String, AgentProposalRecord>>,
+    import_extractions: Mutex<HashMap<String, ImportExtractionRecord>>,
+    import_previews: Mutex<HashMap<String, ImportPreviewRecord>>,
+    import_drafts: Mutex<HashMap<String, ImportDraftRecord>>,
 }
 
 impl AppState {
@@ -45,6 +49,9 @@ impl AppState {
             ai_previews: Mutex::new(HashMap::new()),
             agent_previews: Mutex::new(HashMap::new()),
             agent_proposals: Mutex::new(HashMap::new()),
+            import_extractions: Mutex::new(HashMap::new()),
+            import_previews: Mutex::new(HashMap::new()),
+            import_drafts: Mutex::new(HashMap::new()),
         }
     }
 
@@ -106,6 +113,18 @@ impl AppState {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         agent_proposals.clear();
+        let mut import_extractions = self
+            .import_extractions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        import_extractions.clear();
+        let mut import_previews = self
+            .import_previews
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        import_previews.clear();
+        let mut import_drafts = self.import_drafts.lock().unwrap_or_else(|e| e.into_inner());
+        import_drafts.clear();
     }
 
     pub fn insert_agent_preview(&self, preview: AgentPreviewRecord) {
@@ -142,6 +161,54 @@ impl AppState {
             .unwrap_or_else(|e| e.into_inner());
         proposals.retain(|_, proposal| !proposal.is_expired());
         proposals.remove(id)
+    }
+
+    pub fn insert_import_extraction(&self, extraction: ImportExtractionRecord) {
+        let mut extractions = self
+            .import_extractions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        extractions.retain(|_, extraction| !extraction.is_expired());
+        extractions.insert(extraction.id.clone(), extraction);
+    }
+
+    pub fn get_import_extraction(&self, id: &str) -> Option<ImportExtractionRecord> {
+        let mut extractions = self
+            .import_extractions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        extractions.retain(|_, extraction| !extraction.is_expired());
+        extractions.get(id).cloned()
+    }
+
+    pub fn insert_import_preview(&self, preview: ImportPreviewRecord) {
+        let mut previews = self
+            .import_previews
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        previews.retain(|_, preview| !preview.is_expired());
+        previews.insert(preview.id.clone(), preview);
+    }
+
+    pub fn take_import_preview(&self, id: &str) -> Option<ImportPreviewRecord> {
+        let mut previews = self
+            .import_previews
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        previews.retain(|_, preview| !preview.is_expired());
+        previews.remove(id)
+    }
+
+    pub fn insert_import_draft(&self, draft: ImportDraftRecord) {
+        let mut drafts = self.import_drafts.lock().unwrap_or_else(|e| e.into_inner());
+        drafts.retain(|_, draft| !draft.is_expired());
+        drafts.insert(draft.id.clone(), draft);
+    }
+
+    pub fn take_import_draft(&self, id: &str) -> Option<ImportDraftRecord> {
+        let mut drafts = self.import_drafts.lock().unwrap_or_else(|e| e.into_inner());
+        drafts.retain(|_, draft| !draft.is_expired());
+        drafts.remove(id)
     }
 
     pub fn with_session<T>(

@@ -503,3 +503,101 @@ export interface AgentApplyResult {
   createdFindings: number;
   updatedEngagement: boolean;
 }
+
+export interface ImportEngagement {
+  name: string;
+  clientCode: string;
+  startDate: string;
+  endDate: string;
+  applicationSummary: string;
+  attackSurface: string;
+}
+
+export interface ImportScopeAsset {
+  kind: string;
+  value: string;
+  inScope: boolean;
+  notes: string;
+}
+
+export interface ImportRisk {
+  title: string;
+  description: string;
+  likelihood: number;
+  impact: number;
+  notes: string;
+}
+
+export interface ImportContact {
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+}
+
+export interface ImportTestCase {
+  title: string;
+  category: string;
+  approach: string;
+  status: string;
+  result: string;
+  notes: string;
+}
+
+export interface ImportFinding {
+  title: string;
+  description: string;
+  impact: string;
+  remediation: string;
+  probability: number;
+  impactScore: number;
+  owasp: string;
+  cwe: string;
+}
+
+export interface ImportDraft {
+  sourceName: string;
+  sourceFormat: string;
+  engagement: ImportEngagement;
+  scopeAssets: ImportScopeAsset[];
+  risks: ImportRisk[];
+  assumptions: string[];
+  contacts: ImportContact[];
+  testCases: ImportTestCase[];
+  findings: ImportFinding[];
+}
+
+export interface ImportExtraction {
+  extractionId: string;
+  filename: string;
+  format: string;
+  textPreview: string;
+  textChars: number;
+  truncated: boolean;
+  draftId: string | null;
+  draft: ImportDraft | null;
+}
+
+export interface ImportDraftResult {
+  draftId: string;
+  draft: ImportDraft;
+}
+
+export interface ImportPreview {
+  consentId: string;
+  providerName: string;
+  model: string;
+  redactedPrompt: string;
+  redactionCount: number;
+  redactions: string[];
+  expiresInSeconds: number;
+  isLocal: boolean;
+}
+
+export interface ImportApplyResult {
+  engagementId: string;
+  engagementName: string;
+  testCaseCount: number;
+  findingCount: number;
+}
+

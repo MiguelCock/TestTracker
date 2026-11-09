@@ -32,6 +32,10 @@ import type {
   Finding,
   FindingInput,
   GeneratedDocument,
+  ImportApplyResult,
+  ImportDraftResult,
+  ImportExtraction,
+  ImportPreview,
   PluginPublisher,
   PluginRunResult,
   PluginSummary,
@@ -166,4 +170,22 @@ export const api = {
     }),
   importBundle: (dataBase64: string, passphrase: string) =>
     ipc<BundleImportResult>("import_bundle", { dataBase64, passphrase }),
+
+  extractImportDocument: (filename: string, dataBase64: string) =>
+    ipc<ImportExtraction>("extract_import_document", { filename, dataBase64 }),
+  previewImportAi: (
+    extractionId: string,
+    providerId: string,
+    allowCloud: boolean,
+    instructions: string,
+  ) =>
+    ipc<ImportPreview>("preview_import_ai", {
+      extractionId,
+      providerId,
+      allowCloud,
+      instructions,
+    }),
+  runImportAi: (consentId: string) => ipc<ImportDraftResult>("run_import_ai", { consentId }),
+  applyImportDraft: (draftId: string) => ipc<ImportApplyResult>("apply_import_draft", { draftId }),
+
 };

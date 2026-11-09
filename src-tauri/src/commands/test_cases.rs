@@ -220,7 +220,7 @@ pub async fn reorder_test_cases(
     })
 }
 
-fn validate(input: &TestCaseInput) -> AppResult<()> {
+pub(crate) fn validate(input: &TestCaseInput) -> AppResult<()> {
     if input.engagement_id.trim().is_empty() {
         return Err(AppError::Validation("Engagement is required.".into()));
     }

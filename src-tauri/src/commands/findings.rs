@@ -128,7 +128,7 @@ pub async fn delete_finding(state: State<'_, AppState>, id: String) -> AppResult
     })
 }
 
-fn validate(input: &FindingInput) -> AppResult<()> {
+pub(crate) fn validate(input: &FindingInput) -> AppResult<()> {
     if input.engagement_id.trim().is_empty() {
         return Err(AppError::Validation("Engagement is required.".into()));
     }
