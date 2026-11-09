@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Download,
@@ -8,6 +9,7 @@ import {
   FileText,
   Paperclip,
   Plus,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +27,7 @@ import type { Evidence, Finding, TestCase } from "@/types";
 const MAX_BYTES = 8 * 1024 * 1024;
 
 export function EvidencePanel({ engagementId }: { engagementId: string }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [preview, setPreview] = useState<Evidence | null>(null);
@@ -155,6 +158,20 @@ export function EvidencePanel({ engagementId }: { engagementId: string }) {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
+                          {analyzable(item.mimeType) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Analyze evidence with AI"
+                              onClick={() =>
+                                navigate(
+                                  `/engagements/${engagementId}?tab=assistant&focus=evidence:${item.id}`,
+                                )
+                              }
+                            >
+                              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                            </Button>
+                          )}
                           {previewable(item.mimeType) && (
                             <Button
                               variant="ghost"
@@ -427,6 +444,15 @@ function EvidencePreview({ data }: { data: { evidence: Evidence; dataBase64: str
 
 function decodeText(base64: string): string {
   return new TextDecoder().decode(base64ToBytes(base64));
+}
+
+function analyzable(mimeType: string): boolean {
+  return (
+    mimeType.startsWith("image/") ||
+    isText(mimeType) ||
+    mimeType === "application/pdf" ||
+    mimeType.includes("wordprocessingml")
+  );
 }
 
 function previewable(mimeType: string): boolean {

@@ -36,6 +36,10 @@ Each engagement has an explicit AI policy:
 The policy is enforced in Rust, not in the UI. A cloud call without an approved policy and a
 server-side consent token is rejected.
 
+Image input requires an additional provider-level opt-in. Only providers explicitly marked as
+vision-capable receive evidence images, and only after the user selects an evidence item and
+approves the preview.
+
 ## Consent flow
 
 Before a prompt leaves the device, the UI shows the provider, model, policy, purpose, redaction
@@ -76,6 +80,8 @@ organization-specific rules are planned.
 - AI tool calls and automatic data access are not implemented in v1.
 - No automatic execution of generated scripts.
 - Responses are displayed as plain text and are never auto-applied to findings or reports.
+- Evidence text and images are included only when explicitly selected. Images are re-encoded to
+  remove metadata and are capped in size. Redaction cannot inspect pixels.
 
 ## MCP
 

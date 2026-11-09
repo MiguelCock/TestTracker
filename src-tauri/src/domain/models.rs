@@ -407,3 +407,43 @@ pub struct Approval {
     pub signed_at: String,
     pub verified: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TestTemplateBundle {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub version: String,
+    pub source: String,
+    pub origin_id: Option<String>,
+    pub template_count: i64,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateBundleExport {
+    pub filename: String,
+    pub json: String,
+    pub content_hash: String,
+    pub template_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateBundleImportResult {
+    pub bundle_id: String,
+    pub name: String,
+    pub version: String,
+    pub template_count: usize,
+    pub updated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateBundleApplyResult {
+    pub created: usize,
+    pub skipped: usize,
+    pub test_cases: Vec<TestCase>,
+}

@@ -128,6 +128,7 @@ export function AiProvidersCard() {
                           <KeyRound className="mr-1 h-3 w-3" /> Key stored
                         </Badge>
                       )}
+                      {provider.supportsVision && <Badge tone="accent">Vision</Badge>}
                     </div>
                     <p className="mt-0.5 text-[11px] text-slate-500">
                       {kindLabel[provider.kind]} · {provider.model} · {provider.baseUrl}
@@ -197,6 +198,7 @@ function AddProviderDialog({
   const [kind, setKind] = useState<AiProviderKind>(provider?.kind ?? "ollama");
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? "http://localhost:11434");
   const [model, setModel] = useState(provider?.model ?? "");
+  const [supportsVision, setSupportsVision] = useState(provider?.supportsVision ?? false);
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
@@ -221,6 +223,7 @@ function AddProviderDialog({
       kind,
       baseUrl: baseUrl.trim(),
       model: model.trim(),
+      supportsVision,
       apiKey: apiKey.trim() ? apiKey.trim() : null,
     });
   };
@@ -358,6 +361,18 @@ function AddProviderDialog({
           </p>
         )}
         {modelError && <ErrorBlock message={modelError} />}
+        <label className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-[11px] text-slate-400">
+          <input
+            type="checkbox"
+            checked={supportsVision}
+            onChange={(event) => setSupportsVision(event.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5 rounded border-slate-600 bg-slate-900"
+          />
+          <span>
+            This model supports image input. Enable only for vision-capable models; evidence
+            screenshots are sent only when you explicitly analyze them.
+          </span>
+        </label>
         <Field
           label="API key"
           hint={

@@ -31,19 +31,22 @@ pub fn render_pdf(report: &ReportDocument) -> AppResult<Vec<u8>> {
 
 fn render_source(report: &ReportDocument) -> String {
     let mut out = String::new();
-    out.push_str("#set page(paper: \"a4\", margin: (x: 2cm, y: 2cm))\n");
-    out.push_str("#set text(font: \"Libertinus Serif\", size: 10pt)\n");
+    out.push_str("#set page(paper: \"a4\", margin: (x: 1.9cm, y: 2cm))\n");
+    out.push_str("#set text(font: \"Libertinus Serif\", size: 10pt, fill: rgb(\"#1e293b\"))\n");
     out.push_str("#set heading(numbering: \"1.\")\n");
+    out.push_str("#show heading: set text(fill: rgb(\"#0f766e\"))\n");
     out.push_str("#set par(justify: true)\n");
+    out.push_str("#rect(width: 100%, height: 0.35cm, fill: rgb(\"#0f172a\"))[]\n");
+    out.push_str("#v(0.8em)\n");
     out.push_str(&format!(
-        "#align(center)[#text(size: 20pt, weight: \"bold\")[{}]]\n",
+        "#align(center)[#text(size: 22pt, weight: \"bold\", fill: rgb(\"#0f172a\"))[{}]]\n",
         escape(&report.title)
     ));
     out.push_str(&format!(
-        "#align(center)[#text(size: 11pt)[{}]]\n",
+        "#align(center)[#text(size: 11pt, fill: rgb(\"#0f766e\"))[{}]]\n",
         escape(&report.subtitle)
     ));
-    out.push_str("#v(1em)\n");
+    out.push_str("#v(0.6em)\n#align(center)[#rect(width: 45%, height: 0.1cm, fill: rgb(\"#10b981\"))[]]\n#v(1em)\n");
     if !report.metadata.is_empty() {
         out.push_str("#table(columns: 2, inset: 5pt, stroke: 0.5pt,\n");
         for (key, value) in &report.metadata {

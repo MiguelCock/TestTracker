@@ -130,6 +130,7 @@ pub struct AiProviderSummary {
     pub model: String,
     pub has_key: bool,
     pub is_local: bool,
+    pub supports_vision: bool,
     pub created_at: String,
 }
 
@@ -140,6 +141,8 @@ pub struct AiProviderInput {
     pub kind: AiProviderKind,
     pub base_url: String,
     pub model: String,
+    #[serde(default)]
+    pub supports_vision: bool,
     #[serde(default)]
     pub api_key: Option<String>,
 }

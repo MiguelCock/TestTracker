@@ -167,6 +167,7 @@ pub async fn run_agent_skill(
         api_key: preview.api_key.as_str(),
         system_prompt: &preview.system_prompt,
         prompt: &preview.prompt,
+        image: None,
     })
     .await
     {
@@ -365,6 +366,39 @@ pub(crate) fn apply_proposal(
             };
             db::test_cases::update(tx, target_id, &input, now)?;
             Ok(("Updated the test approach.".into(), 0, 0))
+        }
+        AgentSkill::FindingImprove => {
+            let target_id = proposal
+                .target_id
+                .as_deref()
+                .ok_or_else(|| AppError::Validation("Missing target finding.".into()))?;
+            let finding = db::findings::get(tx, target_id)?;
+            if finding.engagement_id != proposal.engagement_id {
+                return Err(AppError::Validation(
+                    "The target finding does not belong to this engagement.".into(),
+                ));
+            }
+            let probability = payload_u8(&proposal.payload, "probability")?;
+            let impact_score = payload_u8(&proposal.payload, "impactScore")?;
+            let severity = severity_for(probability, impact_score)?;
+            let input = FindingInput {
+                engagement_id: proposal.engagement_id.clone(),
+                code: finding.code.clone(),
+                title: payload_string(&proposal.payload, "title")?,
+                description: payload_string(&proposal.payload, "description").unwrap_or_default(),
+                impact: payload_string(&proposal.payload, "impact").unwrap_or_default(),
+                remediation: payload_string(&proposal.payload, "remediation").unwrap_or_default(),
+                owasp: payload_string(&proposal.payload, "owasp").unwrap_or_default(),
+                cwe: payload_string(&proposal.payload, "cwe").unwrap_or_default(),
+                status: finding.status,
+                retest_status: finding.retest_status,
+                owner: finding.owner,
+                probability,
+                impact_score,
+                test_case_ids: finding.test_case_ids,
+            };
+            db::findings::update(tx, target_id, &input, severity, now)?;
+            Ok(("Updated the finding draft.".into(), 0, 0))
         }
         AgentSkill::FindingDraft => {
             let target_id = proposal

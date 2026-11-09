@@ -18,6 +18,7 @@ const skillLabel: Record<AgentSkill, string> = {
   test_cases: "Test cases",
   test_approach: "Test approach",
   finding_draft: "Finding draft",
+  finding_improve: "Improve finding",
 };
 
 const policyLabel: Record<AiPolicy, string> = {

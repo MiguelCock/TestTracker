@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   ArrowDown,
   ArrowUp,
+  Bot,
+  Download,
   ListChecks,
+  Package,
   Pencil,
   Plus,
   Search,
   Sparkles,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,9 +28,16 @@ import { EmptyState, ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/s
 import { api } from "@/lib/api";
 import { testCaseStatusLabel } from "@/lib/labels";
 import { AgentSkillDialog } from "@/features/ai/AgentSkillDialog";
-import type { TestCase, TestCaseInput, TestCaseStatus, TestCaseTemplate } from "@/types";
+import type {
+  TestCase,
+  TestCaseInput,
+  TestCaseStatus,
+  TestCaseTemplate,
+  TestTemplateBundle,
+} from "@/types";
 
 export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [editing, setEditing] = useState<TestCase | null>(null);
@@ -243,6 +255,18 @@ export function TestTrackerPanel({ engagementId }: { engagementId: string }) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Ask assistant about test case"
+                          onClick={() =>
+                            navigate(
+                              `/engagements/${engagementId}?tab=assistant&focus=test_case:${testCase.id}`,
+                            )
+                          }
+                        >
+                          <Bot className="h-3.5 w-3.5 text-emerald-400" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -533,9 +557,17 @@ function TemplatePickerDialog({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [bundleError, setBundleError] = useState<string | null>(null);
+  const [bundleMessage, setBundleMessage] = useState<string | null>(null);
+  const [busyBundle, setBusyBundle] = useState<string | null>(null);
   const templates = useQuery({
     queryKey: ["templates"],
     queryFn: () => api.listTestCaseTemplates(),
+    enabled: open,
+  });
+  const bundles = useQuery({
+    queryKey: ["test-bundles"],
+    queryFn: api.listTestBundles,
     enabled: open,
   });
   const create = useMutation({
@@ -546,6 +578,72 @@ function TemplatePickerDialog({
       onCreated();
       onOpenChange(false);
     },
+  });
+
+  const applyBundle = useMutation({
+    mutationFn: (bundleId: string) => api.createTestCasesFromBundle(engagementId, bundleId),
+    onMutate: (bundleId) => {
+      setBusyBundle(bundleId);
+      setBundleError(null);
+      setBundleMessage(null);
+    },
+    onSuccess: (result) => {
+      setBundleMessage(
+        `Added ${result.created} test${result.created === 1 ? "" : "s"}${
+          result.skipped ? `, skipped ${result.skipped} duplicate(s)` : ""
+        }.`,
+      );
+      onCreated();
+    },
+    onError: (error) => setBundleError(error.message),
+    onSettled: () => setBusyBundle(null),
+  });
+
+  const importBundle = useMutation({
+    mutationFn: async (file: File) => {
+      if (file.size > 2 * 1024 * 1024) {
+        throw new Error("Template bundle files must be 2 MB or smaller.");
+      }
+      return api.importTestBundle(await file.text());
+    },
+    onSuccess: (result) => {
+      setBundleMessage(
+        `${result.updated ? "Updated" : "Imported"} ${result.name} v${result.version} with ${result.templateCount} templates.`,
+      );
+      setBundleError(null);
+      void templates.refetch();
+      void bundles.refetch();
+    },
+    onError: (error) => setBundleError(error.message),
+  });
+
+  const exportBundle = async (bundle: TestTemplateBundle) => {
+    setBundleError(null);
+    try {
+      const exported = await api.exportTestBundle(bundle.id);
+      const blob = new Blob([exported.json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = exported.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch (error) {
+      setBundleError(error instanceof Error ? error.message : "Unable to export the bundle.");
+    }
+  };
+
+  const deleteBundle = useMutation({
+    mutationFn: (bundleId: string) => api.deleteTestBundle(bundleId),
+    onSuccess: () => {
+      setBundleMessage("Imported bundle deleted.");
+      setBundleError(null);
+      void templates.refetch();
+      void bundles.refetch();
+    },
+    onError: (error) => setBundleError(error.message),
   });
 
   const grouped = useMemo(() => {
@@ -601,6 +699,94 @@ function TemplatePickerDialog({
         </>
       }
     >
+      <div className="mb-5 rounded-xl border border-slate-800 bg-slate-950/30 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
+              <Package className="h-4 w-4 text-emerald-400" /> Template bundles
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Add a curated pack or share a JSON bundle across teams.
+            </p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-200 hover:border-slate-600">
+            <Upload className="h-3.5 w-3.5" /> Import bundle
+            <input
+              type="file"
+              accept=".json,.tttemplates.json,application/json"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) importBundle.mutate(file);
+                event.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+        {bundleMessage && (
+          <p className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-300">
+            {bundleMessage}
+          </p>
+        )}
+        {bundleError && (
+          <div className="mt-3">
+            <ErrorBlock message={bundleError} />
+          </div>
+        )}
+        {bundles.isLoading && <p className="mt-3 text-xs text-slate-500">Loading bundles…</p>}
+        {bundles.data && bundles.data.length > 0 && (
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {bundles.data.map((bundle) => (
+              <div
+                key={bundle.id}
+                className="rounded-lg border border-slate-800 bg-slate-900/60 p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium text-slate-200">{bundle.name}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">{bundle.description}</p>
+                  </div>
+                  <Badge tone={bundle.source === "builtin" ? "info" : "accent"}>
+                    {bundle.source === "builtin" ? "Built-in" : "Imported"}
+                  </Badge>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                  <Badge>{bundle.templateCount} templates</Badge>
+                  <span>v{bundle.version}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap justify-end gap-1">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => applyBundle.mutate(bundle.id)}
+                    disabled={applyBundle.isPending || bundle.templateCount === 0}
+                  >
+                    {busyBundle === bundle.id ? <Spinner /> : <Plus className="h-3.5 w-3.5" />}
+                    Add bundle
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => void exportBundle(bundle)}>
+                    <Download className="h-3.5 w-3.5" /> Export
+                  </Button>
+                  {bundle.source === "imported" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        if (window.confirm(`Delete imported bundle "${bundle.name}"?`)) {
+                          deleteBundle.mutate(bundle.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-slate-500" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="relative mb-4">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
         <Input

@@ -352,6 +352,7 @@ export interface AiProviderSummary {
   model: string;
   hasKey: boolean;
   isLocal: boolean;
+  supportsVision: boolean;
   createdAt: string;
 }
 
@@ -360,6 +361,7 @@ export interface AiProviderInput {
   kind: AiProviderKind;
   baseUrl: string;
   model: string;
+  supportsVision: boolean;
   apiKey: string | null;
 }
 
@@ -472,7 +474,8 @@ export type AgentSkill =
   | "assumptions"
   | "test_cases"
   | "test_approach"
-  | "finding_draft";
+  | "finding_draft"
+  | "finding_improve";
 
 export interface AgentPreview {
   consentId: string;
@@ -646,4 +649,85 @@ export interface McpProposalAccepted {
   state: McpApprovalState;
   expiresInSeconds: number;
   message: string;
+}
+
+export type AssistantFocusKind = "engagement" | "test_case" | "finding" | "evidence";
+
+export interface AssistantFocus {
+  kind: AssistantFocusKind;
+  id: string | null;
+}
+
+export interface AssistantTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AssistantAttachment {
+  filename: string;
+  mimeType: string;
+  size: number;
+  width: number;
+  height: number;
+  hash: string;
+  originalHash: string;
+}
+
+export interface AssistantPreview {
+  consentId: string;
+  providerName: string;
+  model: string;
+  policy: AiPolicy;
+  redactedPrompt: string;
+  redactionCount: number;
+  redactions: string[];
+  expiresInSeconds: number;
+  isLocal: boolean;
+  focus: AssistantFocus;
+  targetLabel: string | null;
+  attachment: AssistantAttachment | null;
+}
+
+export interface AssistantReply {
+  message: string;
+  proposal: AgentProposal | null;
+  providerName: string;
+  model: string;
+  promptHash: string;
+  responseHash: string;
+  redactionCount: number;
+  promptTokens: number | null;
+  completionTokens: number | null;
+}
+
+export interface TestTemplateBundle {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  source: string;
+  originId: string | null;
+  templateCount: number;
+  updatedAt: string;
+}
+
+export interface TemplateBundleApplyResult {
+  created: number;
+  skipped: number;
+  testCases: TestCase[];
+}
+
+export interface TemplateBundleExport {
+  filename: string;
+  json: string;
+  contentHash: string;
+  templateCount: number;
+}
+
+export interface TemplateBundleImportResult {
+  bundleId: string;
+  name: string;
+  version: string;
+  templateCount: number;
+  updated: boolean;
 }

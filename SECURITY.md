@@ -29,6 +29,9 @@ Only the current `0.1.x` line is supported while the application is pre-release.
 - MCP bridge: off by default, loopback-only, bearer token, Host/Origin validation, read/draft tools
   only, explicit in-app approval for every proposal, stops on vault lock. The token grants access to
   all engagements while running; treat it as a high-value local credential.
+- Assistant: fixed server-validated actions, explicit apply, bounded context, redacted text
+  previews, per-provider vision opt-in, image metadata stripping, and audit metadata only.
+- Template bundles: validated JSON, size/hash checks, domain/text limits, and local ID remapping.
 
 ## Release status
 

@@ -7,6 +7,7 @@ use rusqlite::Connection;
 use zeroize::Zeroizing;
 
 use crate::ai::agent::{AgentPreviewRecord, AgentProposalRecord};
+use crate::ai::assistant::AssistantPreviewRecord;
 use crate::ai::model::AiPreview;
 use crate::domain::models::{ProfileSummary, SessionInfo};
 use crate::error::{AppError, AppResult};
@@ -33,6 +34,7 @@ pub struct AppState {
     ai_previews: Mutex<HashMap<String, AiPreview>>,
     agent_previews: Mutex<HashMap<String, AgentPreviewRecord>>,
     agent_proposals: Mutex<HashMap<String, AgentProposalRecord>>,
+    assistant_previews: Mutex<HashMap<String, AssistantPreviewRecord>>,
     import_extractions: Mutex<HashMap<String, ImportExtractionRecord>>,
     import_previews: Mutex<HashMap<String, ImportPreviewRecord>>,
     import_drafts: Mutex<HashMap<String, ImportDraftRecord>>,
@@ -51,6 +53,7 @@ impl AppState {
             ai_previews: Mutex::new(HashMap::new()),
             agent_previews: Mutex::new(HashMap::new()),
             agent_proposals: Mutex::new(HashMap::new()),
+            assistant_previews: Mutex::new(HashMap::new()),
             import_extractions: Mutex::new(HashMap::new()),
             import_previews: Mutex::new(HashMap::new()),
             import_drafts: Mutex::new(HashMap::new()),
@@ -118,6 +121,11 @@ impl AppState {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         agent_proposals.clear();
+        let mut assistant_previews = self
+            .assistant_previews
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        assistant_previews.clear();
         let mut import_extractions = self
             .import_extractions
             .lock()
@@ -214,6 +222,24 @@ impl AppState {
         let mut drafts = self.import_drafts.lock().unwrap_or_else(|e| e.into_inner());
         drafts.retain(|_, draft| !draft.is_expired());
         drafts.remove(id)
+    }
+
+    pub fn insert_assistant_preview(&self, preview: AssistantPreviewRecord) {
+        let mut previews = self
+            .assistant_previews
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        previews.retain(|_, preview| !preview.is_expired());
+        previews.insert(preview.id.clone(), preview);
+    }
+
+    pub fn take_assistant_preview(&self, id: &str) -> Option<AssistantPreviewRecord> {
+        let mut previews = self
+            .assistant_previews
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        previews.retain(|_, preview| !preview.is_expired());
+        previews.remove(id)
     }
 
     pub fn with_session<T>(

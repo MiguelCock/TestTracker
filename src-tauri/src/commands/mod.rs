@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod ai;
+pub mod assistant;
 pub mod bundles;
 pub mod documents;
 pub mod engagements;
@@ -9,5 +10,6 @@ pub mod imports;
 pub mod mcp;
 pub mod plugins;
 pub mod review;
+pub mod templates;
 pub mod test_cases;
 pub mod vault;

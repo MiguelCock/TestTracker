@@ -13,7 +13,7 @@ use crate::domain::models::{DeleteResult, Evidence, EvidenceData, EvidenceInput}
 use crate::domain::rbac;
 use crate::error::{AppError, AppResult};
 use crate::security::{audit, crypto};
-use crate::state::AppState;
+use crate::state::{AppState, UnlockedSession};
 
 const MAX_EVIDENCE_BYTES: usize = 8 * 1024 * 1024;
 
@@ -156,30 +156,38 @@ pub async fn add_evidence(state: State<'_, AppState>, input: EvidenceInput) -> A
 pub async fn get_evidence_data(state: State<'_, AppState>, id: String) -> AppResult<EvidenceData> {
     let data_dir = state.data_dir.clone();
     state.with_session(|session| {
-        let evidence = db::evidence::get(&session.conn, &id)?;
-        let (nonce_hex, stored_path) = db::evidence::blob(&session.conn, &evidence.blob_id)?;
-        let path = validate_blob_path(&data_dir, &stored_path)?;
-        let ciphertext = fs::read(&path)?;
-        if ciphertext.len() > MAX_EVIDENCE_BYTES + 64 {
-            return Err(AppError::Internal("stored evidence is too large".into()));
-        }
-        let nonce =
-            hex::decode(nonce_hex).map_err(|_| AppError::Internal("invalid nonce".into()))?;
-        let key = crypto::derive_evidence_key(&session.master_key, &evidence.engagement_id);
-        let aad = format!(
-            "testtracker-evidence-v1:{}:{}",
-            evidence.engagement_id, evidence.id
-        );
-        let plaintext = crypto::decrypt(&key, &nonce, &ciphertext, aad.as_bytes())?;
-        let actual_hash = blake3::hash(&plaintext).to_hex().to_string();
-        if actual_hash != evidence.plaintext_hash {
-            return Err(AppError::Crypto);
-        }
+        let (evidence, plaintext) = read_evidence_content(&data_dir, session, &id)?;
         Ok(EvidenceData {
             evidence,
             data_base64: BASE64.encode(plaintext.as_slice()),
         })
     })
+}
+
+pub(crate) fn read_evidence_content(
+    data_dir: &Path,
+    session: &UnlockedSession,
+    id: &str,
+) -> AppResult<(Evidence, Zeroizing<Vec<u8>>)> {
+    let evidence = db::evidence::get(&session.conn, id)?;
+    let (nonce_hex, stored_path) = db::evidence::blob(&session.conn, &evidence.blob_id)?;
+    let path = validate_blob_path(data_dir, &stored_path)?;
+    let ciphertext = fs::read(&path)?;
+    if ciphertext.len() > MAX_EVIDENCE_BYTES + 64 {
+        return Err(AppError::Internal("stored evidence is too large".into()));
+    }
+    let nonce = hex::decode(nonce_hex).map_err(|_| AppError::Internal("invalid nonce".into()))?;
+    let key = crypto::derive_evidence_key(&session.master_key, &evidence.engagement_id);
+    let aad = format!(
+        "testtracker-evidence-v1:{}:{}",
+        evidence.engagement_id, evidence.id
+    );
+    let plaintext = crypto::decrypt(&key, &nonce, &ciphertext, aad.as_bytes())?;
+    let actual_hash = blake3::hash(&plaintext).to_hex().to_string();
+    if actual_hash != evidence.plaintext_hash {
+        return Err(AppError::Crypto);
+    }
+    Ok((evidence, Zeroizing::new(plaintext.to_vec())))
 }
 
 #[tauri::command]

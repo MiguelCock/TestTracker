@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -25,17 +25,20 @@ import { FindingsPanel } from "@/features/engagements/FindingsPanel";
 import { EvidencePanel } from "@/features/engagements/EvidencePanel";
 import { ReviewPanel } from "@/features/engagements/ReviewPanel";
 import { DocumentsPanel } from "@/features/engagements/DocumentsPanel";
-import { AiPanel } from "@/features/engagements/AiPanel";
+import { AssistantPanel } from "@/features/ai/AssistantPanel";
 import { PluginsPanel } from "@/features/engagements/PluginsPanel";
 import { ExportBundleDialog } from "@/features/bundles/ExportBundleDialog";
 import { AuditPanel } from "@/features/engagements/AuditPanel";
 import { AgentSkillDialog } from "@/features/ai/AgentSkillDialog";
-import type { AgentSkill, EngagementDetail } from "@/types";
+import type { AgentSkill, AssistantFocus, EngagementDetail } from "@/types";
 
 export function EngagementDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const activeTab = searchParams.get("tab") ?? "assistant";
+  const assistantFocus = parseAssistantFocus(searchParams.get("focus"));
   const [editOpen, setEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [agentSkill, setAgentSkill] = useState<AgentSkill | null>(null);
@@ -119,13 +122,21 @@ export function EngagementDetailPage() {
         </span>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          const params = new URLSearchParams(searchParams);
+          params.set("tab", value);
+          if (value !== "assistant") params.delete("focus");
+          setSearchParams(params);
+        }}
+      >
         <TabsList>
+          <TabsTrigger value="assistant">Assistant</TabsTrigger>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="tests">Test tracker</TabsTrigger>
           <TabsTrigger value="findings">Findings</TabsTrigger>
           <TabsTrigger value="evidence">Evidence</TabsTrigger>
-          <TabsTrigger value="ai">AI</TabsTrigger>
           <TabsTrigger value="review">Review</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="plugins">Plugins</TabsTrigger>
@@ -133,6 +144,22 @@ export function EngagementDetailPage() {
         </TabsList>
 
         <div className="mt-4">
+          <TabsContent value="assistant">
+            <AssistantPanel
+              engagementId={id}
+              focus={assistantFocus}
+              onFocusChange={(next) => {
+                const params = new URLSearchParams(searchParams);
+                if (next.kind === "engagement") {
+                  params.delete("focus");
+                } else {
+                  params.set("focus", `${next.kind}:${next.id}`);
+                }
+                params.set("tab", "assistant");
+                setSearchParams(params);
+              }}
+            />
+          </TabsContent>
           <TabsContent value="overview">
             <OverviewPanel detail={detail.data} onDraft={setAgentSkill} />
           </TabsContent>
@@ -144,9 +171,6 @@ export function EngagementDetailPage() {
           </TabsContent>
           <TabsContent value="evidence">
             <EvidencePanel engagementId={id} />
-          </TabsContent>
-          <TabsContent value="ai">
-            <AiPanel engagementId={id} />
           </TabsContent>
           <TabsContent value="review">
             <ReviewPanel engagementId={id} />
@@ -392,4 +416,16 @@ function OverviewPanel({
       </div>
     </div>
   );
+}
+
+function parseAssistantFocus(value: string | null): AssistantFocus {
+  if (!value) return { kind: "engagement", id: null };
+  const separator = value.indexOf(":");
+  if (separator < 0) return { kind: "engagement", id: null };
+  const kind = value.slice(0, separator);
+  const id = value.slice(separator + 1);
+  if (!id || !["test_case", "finding", "evidence"].includes(kind)) {
+    return { kind: "engagement", id: null };
+  }
+  return { kind: kind as AssistantFocus["kind"], id };
 }

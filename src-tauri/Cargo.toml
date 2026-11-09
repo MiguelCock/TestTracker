@@ -50,6 +50,7 @@ wat = "1"
 calamine = { version = "0.38", features = ["chrono"] }
 pdf-extract = "0.12"
 quick-xml = "0.41"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 axum = "0.8"
 http = "1"
 schemars = "1"

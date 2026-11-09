@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { Pencil, Plus, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge, FindingStatusBadge, SeverityBadge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import { severityFor } from "@/lib/severity";
 import type { Finding, FindingInput, FindingStatus, RetestStatus, TestCase } from "@/types";
 
 export function FindingsPanel({ engagementId }: { engagementId: string }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Finding | null>(null);
@@ -119,6 +121,18 @@ export function FindingsPanel({ engagementId }: { engagementId: string }) {
                     <td className="px-4 py-3 text-xs text-slate-400">{finding.owner || "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Ask assistant about finding"
+                          onClick={() =>
+                            navigate(
+                              `/engagements/${engagementId}?tab=assistant&focus=finding:${finding.id}`,
+                            )
+                          }
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"

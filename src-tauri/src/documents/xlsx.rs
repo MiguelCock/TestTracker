@@ -39,6 +39,17 @@ pub fn render_xlsx(kind: DocumentKind, source: &ReportSource<'_>) -> AppResult<V
         .set_border_color(Color::RGB(0xE2E8F0))
         .set_align(FormatAlign::Top)
         .set_text_wrap();
+    let alt_format = Format::new()
+        .set_border(FormatBorder::Thin)
+        .set_border_color(Color::RGB(0xE2E8F0))
+        .set_align(FormatAlign::Top)
+        .set_text_wrap()
+        .set_background_color(Color::RGB(0xF8FAFC));
+    let critical_format = status_format(Color::RGB(0xFEE2E2), Color::RGB(0x991B1B));
+    let high_format = status_format(Color::RGB(0xFEE2E2), Color::RGB(0xB91C1C));
+    let medium_format = status_format(Color::RGB(0xFEF3C7), Color::RGB(0xB45309));
+    let low_format = status_format(Color::RGB(0xDBEAFE), Color::RGB(0x1D4ED8));
+    let success_format = status_format(Color::RGB(0xD1FAE5), Color::RGB(0x047857));
 
     let (headers, rows, widths): (Vec<&str>, Vec<Vec<String>>, Vec<u16>) = match kind {
         DocumentKind::TestCaseTracker => (
@@ -142,12 +153,21 @@ pub fn render_xlsx(kind: DocumentKind, source: &ReportSource<'_>) -> AppResult<V
     }
     for (row_index, row) in rows.iter().enumerate() {
         for (col_index, value) in row.iter().enumerate() {
+            let format = match value.trim().to_ascii_lowercase().as_str() {
+                "critical" => &critical_format,
+                "high" | "blocked" | "failed" | "open" => &high_format,
+                "medium" | "in progress" | "in review" | "retest pending" => &medium_format,
+                "low" => &low_format,
+                "done" | "closed" | "passed" | "remediated" => &success_format,
+                _ if row_index % 2 == 1 => &alt_format,
+                _ => &cell_format,
+            };
             worksheet
                 .write_string_with_format(
                     header_row + 1 + row_index as u32,
                     col_index as u16,
                     value,
-                    &cell_format,
+                    format,
                 )
                 .map_err(xlsx_error)?;
         }
@@ -160,10 +180,24 @@ pub fn render_xlsx(kind: DocumentKind, source: &ReportSource<'_>) -> AppResult<V
     worksheet
         .set_freeze_panes(header_row + 1, 0)
         .map_err(xlsx_error)?;
+    worksheet
+        .autofilter(header_row, 0, header_row + rows.len() as u32, last_col)
+        .map_err(xlsx_error)?;
 
     workbook
         .save_to_buffer()
         .map_err(|error| AppError::Internal(format!("XLSX generation failed: {error}")))
+}
+
+fn status_format(background: Color, font: Color) -> Format {
+    Format::new()
+        .set_border(FormatBorder::Thin)
+        .set_border_color(Color::RGB(0xE2E8F0))
+        .set_align(FormatAlign::Top)
+        .set_text_wrap()
+        .set_background_color(background)
+        .set_font_color(font)
+        .set_bold()
 }
 
 fn xlsx_error(error: rust_xlsxwriter::XlsxError) -> AppError {

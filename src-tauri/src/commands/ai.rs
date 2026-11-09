@@ -58,6 +58,7 @@ pub async fn create_ai_provider(
             base_url: base_url.to_string(),
             model: model.to_string(),
             encrypted_api_key,
+            supports_vision: input.supports_vision,
             created_by: session.profile.id.clone(),
             created_at: now.clone(),
         };
@@ -117,6 +118,7 @@ pub async fn update_ai_provider(
             base_url,
             model,
             encrypted_api_key,
+            supports_vision: input.supports_vision,
             created_by: existing.created_by,
             created_at: existing.created_at,
         };
@@ -391,6 +393,7 @@ pub async fn send_ai_message(
         api_key: preview.api_key.as_str(),
         system_prompt: &preview.system_prompt,
         prompt: &preview.prompt,
+        image: None,
     })
     .await
     {
@@ -502,6 +505,7 @@ fn audit_failure(state: &AppState, preview: &AiPreview, error: &AppError) {
 fn summary(provider: db::ai::StoredAiProvider) -> AiProviderSummary {
     AiProviderSummary {
         is_local: providers::is_local(provider.kind, &provider.base_url),
+        supports_vision: provider.supports_vision,
         id: provider.id,
         name: provider.name,
         kind: provider.kind,

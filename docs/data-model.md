@@ -5,31 +5,33 @@ Migrations are versioned with `PRAGMA user_version`. Foreign keys are enabled.
 
 ## Tables
 
-| Table                 | Purpose                                                                |
-| --------------------- | ---------------------------------------------------------------------- |
-| `profiles`            | Local identities, role, Ed25519 public key, encrypted private key      |
-| `engagements`         | Project metadata, scope summary, attack surface, status, version       |
-| `engagement_members`  | Engagement-to-profile role assignments                                 |
-| `scope_assets`        | URLs, hosts, APIs, cloud accounts, and in/out-of-scope flags           |
-| `risks`               | Scoping risks with likelihood, impact, and stored severity             |
-| `assumptions`         | Engagement assumptions                                                 |
-| `contacts`            | Client and engagement contacts                                         |
-| `test_case_templates` | Reusable, domain-specific test cases (web, API, mobile, etc.)          |
-| `test_cases`          | Engagement test execution records                                      |
-| `findings`            | Structured findings with severity, OWASP/CWE, remediation, retest      |
-| `finding_test_cases`  | Many-to-many links between findings and tests                          |
-| `finding_assets`      | Links between findings and scope assets (future UI)                    |
-| `evidence`            | Evidence metadata and encrypted blob references                        |
-| `evidence_blobs`      | Encrypted blob locations and nonces                                    |
-| `snapshots`           | Immutable engagement snapshots with BLAKE3 content hashes              |
-| `generated_documents` | Generated PDF/DOCX/XLSX artifacts, encrypted paths, nonces, and hashes |
-| `documents`           | Editable report content (future)                                       |
-| `document_versions`   | Immutable editable-document versions (future)                          |
-| `approvals`           | Reviewer decisions, snapshot links, and Ed25519 signatures             |
-| `ai_providers`        | AI provider metadata and encrypted API keys                            |
-| `ai_policies`         | Per-engagement AI policy (off, local only, approved cloud)             |
-| `audit_events`        | Append-only hash-chained audit log                                     |
-| `settings`            | Local key/value settings                                               |
+| Table                        | Purpose                                                                |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| `profiles`                   | Local identities, role, Ed25519 public key, encrypted private key      |
+| `engagements`                | Project metadata, scope summary, attack surface, status, version       |
+| `engagement_members`         | Engagement-to-profile role assignments                                 |
+| `scope_assets`               | URLs, hosts, APIs, cloud accounts, and in/out-of-scope flags           |
+| `risks`                      | Scoping risks with likelihood, impact, and stored severity             |
+| `assumptions`                | Engagement assumptions                                                 |
+| `contacts`                   | Client and engagement contacts                                         |
+| `test_case_templates`        | Reusable, domain-specific test cases (web, API, mobile, etc.)          |
+| `test_template_bundles`      | Curated or imported template packs                                     |
+| `test_template_bundle_items` | Templates and stable source IDs in each bundle                         |
+| `test_cases`                 | Engagement test execution records                                      |
+| `findings`                   | Structured findings with severity, OWASP/CWE, remediation, retest      |
+| `finding_test_cases`         | Many-to-many links between findings and tests                          |
+| `finding_assets`             | Links between findings and scope assets (future UI)                    |
+| `evidence`                   | Evidence metadata and encrypted blob references                        |
+| `evidence_blobs`             | Encrypted blob locations and nonces                                    |
+| `snapshots`                  | Immutable engagement snapshots with BLAKE3 content hashes              |
+| `generated_documents`        | Generated PDF/DOCX/XLSX artifacts, encrypted paths, nonces, and hashes |
+| `documents`                  | Editable report content (future)                                       |
+| `document_versions`          | Immutable editable-document versions (future)                          |
+| `approvals`                  | Reviewer decisions, snapshot links, and Ed25519 signatures             |
+| `ai_providers`               | AI provider metadata and encrypted API keys                            |
+| `ai_policies`                | Per-engagement AI policy (off, local only, approved cloud)             |
+| `audit_events`               | Append-only hash-chained audit log                                     |
+| `settings`                   | Local key/value settings                                               |
 
 ## Invariants
 

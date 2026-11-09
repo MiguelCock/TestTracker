@@ -1,6 +1,8 @@
 use std::io::Cursor;
 
-use docx_rs::{AlignmentType, Docx, Paragraph, Run, Table, TableCell, TableRow, WidthType};
+use docx_rs::{
+    AlignmentType, Docx, Paragraph, Run, Shading, Table, TableCell, TableRow, WidthType,
+};
 
 use crate::error::{AppError, AppResult};
 
@@ -10,14 +12,29 @@ pub fn render_docx(report: &ReportDocument) -> AppResult<Vec<u8>> {
     let mut doc = Docx::new()
         .page_size(11906, 16838)
         .add_paragraph(
-            Paragraph::new()
-                .align(AlignmentType::Center)
-                .add_run(Run::new().add_text(&report.title).bold().size(36)),
+            Paragraph::new().align(AlignmentType::Center).add_run(
+                Run::new()
+                    .add_text(&report.title)
+                    .bold()
+                    .size(40)
+                    .color("0F172A"),
+            ),
         )
         .add_paragraph(
-            Paragraph::new()
-                .align(AlignmentType::Center)
-                .add_run(Run::new().add_text(&report.subtitle).size(22)),
+            Paragraph::new().align(AlignmentType::Center).add_run(
+                Run::new()
+                    .add_text(&report.subtitle)
+                    .size(24)
+                    .color("0F766E"),
+            ),
+        )
+        .add_paragraph(
+            Paragraph::new().align(AlignmentType::Center).add_run(
+                Run::new()
+                    .add_text("TestTracker · Confidential")
+                    .size(16)
+                    .color("64748B"),
+            ),
         );
 
     if !report.metadata.is_empty() {
@@ -31,7 +48,13 @@ pub fn render_docx(report: &ReportDocument) -> AppResult<Vec<u8>> {
 
     for section in &report.sections {
         doc = doc.add_paragraph(
-            Paragraph::new().add_run(Run::new().add_text(&section.heading).bold().size(28)),
+            Paragraph::new().page_break_before(true).add_run(
+                Run::new()
+                    .add_text(&section.heading)
+                    .bold()
+                    .size(30)
+                    .color("0F766E"),
+            ),
         );
         for block in &section.blocks {
             match block {
@@ -68,11 +91,29 @@ pub fn render_docx(report: &ReportDocument) -> AppResult<Vec<u8>> {
 }
 
 fn cell(text: &str, bold: bool) -> TableCell {
-    let mut run = Run::new().add_text(text);
+    let mut run = Run::new()
+        .add_text(text)
+        .color(if bold { "FFFFFF" } else { "1E293B" });
     if bold {
         run = run.bold();
     }
-    TableCell::new().add_paragraph(Paragraph::new().add_run(run))
+    let mut cell = TableCell::new().add_paragraph(Paragraph::new().add_run(run));
+    if bold {
+        cell = cell.shading(Shading::new().fill("0F172A"));
+    } else if let Some(fill) = status_fill(text) {
+        cell = cell.shading(Shading::new().fill(fill));
+    }
+    cell
+}
+
+fn status_fill(value: &str) -> Option<&'static str> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "critical" | "high" | "blocked" | "failed" | "open" => Some("FEE2E2"),
+        "medium" | "in progress" | "in review" | "retest pending" => Some("FEF3C7"),
+        "low" => Some("DBEAFE"),
+        "done" | "closed" | "passed" | "remediated" => Some("D1FAE5"),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

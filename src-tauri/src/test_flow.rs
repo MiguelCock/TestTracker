@@ -1,5 +1,7 @@
 use tempfile::tempdir;
 
+use crate::ai::agent::{AgentProposalRecord, AgentSkill};
+use crate::commands::agent::apply_proposal;
 use crate::db;
 use crate::domain::enums::{
     ApprovalDecision, EngagementStatus, FindingStatus, ProfileRole, RetestStatus, Severity,
@@ -25,6 +27,28 @@ fn local_flow_persists_and_verifies() {
     let master = crypto::random_bytes::<32>();
     let mut conn = db::open_encrypted(&db_path, &master).expect("open encrypted db");
     db::apply_migrations(&mut conn).expect("migrate");
+    let template_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM test_case_templates", [], |row| {
+            row.get(0)
+        })
+        .expect("templates");
+    assert_eq!(template_count, 81);
+    let bundle_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM test_template_bundles", [], |row| {
+            row.get(0)
+        })
+        .expect("bundles");
+    assert_eq!(bundle_count, 16);
+    let orphan_items: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM test_template_bundle_items i
+             LEFT JOIN test_case_templates t ON t.id = i.template_id
+             WHERE t.id IS NULL",
+            [],
+            |row| row.get(0),
+        )
+        .expect("orphan bundle items");
+    assert_eq!(orphan_items, 0);
 
     let profile_id = "profile-1";
     let signing = identity::generate();
@@ -136,6 +160,32 @@ fn local_flow_persists_and_verifies() {
     .expect("finding");
     assert_eq!(finding.severity, Severity::Critical);
     assert_eq!(finding.test_case_ids, vec![test_case.id.clone()]);
+
+    let improvement = AgentProposalRecord {
+        id: "finding-improve-1".into(),
+        engagement_id: "engagement-1".into(),
+        skill: AgentSkill::FindingImprove,
+        target_id: Some(finding.id.clone()),
+        payload: serde_json::json!({
+            "title": "Missing authorization on export",
+            "description": "A regular user can export another tenant's data.",
+            "impact": "Cross-tenant data exposure.",
+            "remediation": "Enforce object-level authorization and add regression tests.",
+            "probability": 8,
+            "impactScore": 8,
+            "owasp": "A1",
+            "cwe": "CWE-639"
+        }),
+        expires_at: std::time::Instant::now(),
+    };
+    let tx = conn.transaction().expect("improvement tx");
+    apply_proposal(&tx, &improvement, "Tester", now).expect("improve finding");
+    tx.commit().expect("improvement commit");
+    let improved = db::findings::get(&conn, &finding.id).expect("improved finding");
+    assert_eq!(improved.status, FindingStatus::Open);
+    assert_eq!(improved.retest_status, RetestStatus::Pending);
+    assert_eq!(improved.test_case_ids, vec![test_case.id.clone()]);
+    assert!(improved.remediation.contains("regression tests"));
 
     let detail = db::engagements::detail(&conn, "engagement-1").expect("detail");
     assert_eq!(detail.test_case_count, 1);

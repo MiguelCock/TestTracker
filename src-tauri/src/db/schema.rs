@@ -316,3 +316,36 @@ CREATE TABLE plugins (
     installed_at TEXT NOT NULL
 );
 "#;
+
+pub const MIGRATION_6: &str = r#"
+ALTER TABLE ai_providers ADD COLUMN supports_vision INTEGER NOT NULL DEFAULT 0;
+"#;
+
+pub const MIGRATION_7: &str = r#"
+ALTER TABLE test_case_templates ADD COLUMN source TEXT NOT NULL DEFAULT 'builtin';
+ALTER TABLE test_case_templates ADD COLUMN origin_id TEXT;
+
+CREATE TABLE test_template_bundles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    version TEXT NOT NULL DEFAULT '1.0.0',
+    source TEXT NOT NULL DEFAULT 'imported',
+    origin_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE test_template_bundle_items (
+    bundle_id TEXT NOT NULL,
+    template_id TEXT NOT NULL,
+    origin_template_id TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (bundle_id, template_id),
+    FOREIGN KEY (bundle_id) REFERENCES test_template_bundles(id) ON DELETE CASCADE,
+    FOREIGN KEY (template_id) REFERENCES test_case_templates(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_template_bundle_items_bundle
+    ON test_template_bundle_items(bundle_id, sort_order);
+"#;

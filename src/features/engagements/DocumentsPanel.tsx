@@ -33,6 +33,14 @@ const formatTone: Record<DocumentFormat, "danger" | "info" | "success"> = {
   xlsx: "success",
 };
 
+const kindTone: Record<DocumentKind, string> = {
+  test_plan: "from-sky-500/20 to-cyan-500/5 text-sky-300",
+  test_case_tracker: "from-emerald-500/20 to-teal-500/5 text-emerald-300",
+  findings_register: "from-red-500/20 to-amber-500/5 text-red-300",
+  executive_summary: "from-violet-500/20 to-fuchsia-500/5 text-violet-300",
+  technical_report: "from-amber-500/20 to-orange-500/5 text-amber-300",
+};
+
 function supportsXlsx(kind: DocumentKind): boolean {
   return kind === "test_case_tracker" || kind === "findings_register";
 }
@@ -97,6 +105,29 @@ export function DocumentsPanel({ engagementId }: { engagementId: string }) {
         </Button>
       </div>
 
+      <div className="rounded-xl border border-slate-800 bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-violet-500/10 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">
+              Report workspace
+            </p>
+            <p className="mt-1 text-sm text-slate-200">
+              {documents.data?.length ?? 0} generated document
+              {(documents.data?.length ?? 0) === 1 ? "" : "s"} · encrypted at rest
+            </p>
+            <p className="mt-1 max-w-2xl text-xs text-slate-400">
+              Generate a test plan, tracker, findings register, executive summary, or full technical
+              report from the current engagement data.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge tone="success">PDF</Badge>
+            <Badge tone="info">DOCX</Badge>
+            <Badge tone="warning">XLSX</Badge>
+          </div>
+        </div>
+      </div>
+
       {error && <ErrorBlock message={error} />}
       {documents.isLoading && <LoadingBlock label="Loading documents…" />}
       {documents.isError && <ErrorBlock message={documents.error.message} />}
@@ -131,7 +162,9 @@ export function DocumentsPanel({ engagementId }: { engagementId: string }) {
                   <tr key={document.id} className="align-top">
                     <td className="max-w-md px-4 py-3">
                       <div className="flex items-start gap-2">
-                        <span className="mt-0.5 text-slate-500">
+                        <span
+                          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ring-1 ring-inset ring-white/5 ${kindTone[document.kind]}`}
+                        >
                           {document.format === "xlsx" ? (
                             <FileSpreadsheet className="h-4 w-4" />
                           ) : (

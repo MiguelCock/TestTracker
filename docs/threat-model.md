@@ -77,6 +77,10 @@
 - The MCP token grants access to all engagements while the bridge runs. Any local process that
   obtains it can read that data; a connected MCP client may send retrieved data off-device.
 - MCP prompt injection can influence connected models. Drafts remain untrusted and require review.
+- Redaction cannot remove sensitive content from image pixels. Vision analysis is explicit and
+  provider-scoped but still depends on user review.
+- Imported template bundles are untrusted content. The content hash proves integrity, not
+  authorship.
 - SSD wear-leveling can leave traces after deletion; crypto-shredding is the primary deletion
   control.
 - Third-party dependencies and the webview engine remain part of the attack surface.

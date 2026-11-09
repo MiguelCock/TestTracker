@@ -47,6 +47,11 @@ fn is_local_host(host: Option<&str>) -> bool {
     matches!(host, "localhost" | "127.0.0.1" | "::1")
 }
 
+pub struct ProviderImage<'a> {
+    pub mime_type: &'a str,
+    pub data_base64: &'a str,
+}
+
 pub struct ProviderRequest<'a> {
     pub kind: AiProviderKind,
     pub base_url: &'a str,
@@ -54,6 +59,7 @@ pub struct ProviderRequest<'a> {
     pub api_key: &'a str,
     pub system_prompt: &'a str,
     pub prompt: &'a str,
+    pub image: Option<&'a ProviderImage<'a>>,
 }
 
 pub async fn send(request: &ProviderRequest<'_>) -> AppResult<ProviderReply> {
@@ -63,6 +69,7 @@ pub async fn send(request: &ProviderRequest<'_>) -> AppResult<ProviderReply> {
         request.model,
         request.system_prompt,
         request.prompt,
+        request.image,
     );
     let local = is_local(request.kind, request.base_url);
     let mut builder = reqwest::Client::builder()
@@ -311,42 +318,85 @@ pub fn endpoint(kind: AiProviderKind, base_url: &str) -> String {
     }
 }
 
-pub fn request_body(kind: AiProviderKind, model: &str, system: &str, prompt: &str) -> Value {
+pub fn request_body(
+    kind: AiProviderKind,
+    model: &str,
+    system: &str,
+    prompt: &str,
+    image: Option<&ProviderImage<'_>>,
+) -> Value {
     match kind {
-        AiProviderKind::Ollama => json!({
-            "model": model,
-            "messages": [
-                { "role": "system", "content": system },
-                { "role": "user", "content": prompt }
-            ],
-            "stream": false
-        }),
-        AiProviderKind::OpenaiCompatible | AiProviderKind::AzureOpenai => json!({
-            "model": model,
-            "messages": [
-                { "role": "system", "content": system },
-                { "role": "user", "content": prompt }
-            ],
-            "temperature": 0.2
-        }),
-        AiProviderKind::Anthropic => json!({
-            "model": model,
-            "max_tokens": 4096,
-            "temperature": 0.2,
-            "system": system,
-            "messages": [
-                { "role": "user", "content": prompt }
-            ]
-        }),
+        AiProviderKind::Ollama => {
+            let mut user = json!({ "role": "user", "content": prompt });
+            if let Some(image) = image {
+                user["images"] = json!([image.data_base64]);
+            }
+            json!({
+                "model": model,
+                "messages": [
+                    { "role": "system", "content": system },
+                    user
+                ],
+                "stream": false
+            })
+        }
+        AiProviderKind::OpenaiCompatible | AiProviderKind::AzureOpenai => {
+            let user_content = match image {
+                Some(image) => json!([
+                    { "type": "text", "text": prompt },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": format!(
+                                "data:{};base64,{}",
+                                image.mime_type, image.data_base64
+                            )
+                        }
+                    }
+                ]),
+                None => Value::String(prompt.to_string()),
+            };
+            json!({
+                "model": model,
+                "messages": [
+                    { "role": "system", "content": system },
+                    { "role": "user", "content": user_content }
+                ],
+                "temperature": 0.2
+            })
+        }
+        AiProviderKind::Anthropic => {
+            let content = match image {
+                Some(image) => json!([
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": image.mime_type,
+                            "data": image.data_base64
+                        }
+                    },
+                    { "type": "text", "text": prompt }
+                ]),
+                None => Value::String(prompt.to_string()),
+            };
+            json!({
+                "model": model,
+                "max_tokens": 4096,
+                "temperature": 0.2,
+                "system": system,
+                "messages": [
+                    { "role": "user", "content": content }
+                ]
+            })
+        }
     }
 }
 
 pub(crate) fn parse_response(kind: AiProviderKind, value: &Value) -> AppResult<ProviderReply> {
     let (content, prompt_tokens, completion_tokens) = match kind {
         AiProviderKind::OpenaiCompatible | AiProviderKind::AzureOpenai => (
-            value
-                .pointer("/choices/0/message/content")
-                .and_then(Value::as_str),
+            openai_content(value),
             value
                 .pointer("/usage/prompt_tokens")
                 .and_then(Value::as_u64),
@@ -376,6 +426,16 @@ pub(crate) fn parse_response(kind: AiProviderKind, value: &Value) -> AppResult<P
         prompt_tokens,
         completion_tokens,
     })
+}
+
+fn openai_content(value: &Value) -> Option<&str> {
+    match value.pointer("/choices/0/message/content") {
+        Some(Value::String(content)) => Some(content),
+        Some(Value::Array(parts)) => parts
+            .iter()
+            .find_map(|part| part.get("text").and_then(Value::as_str)),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -435,6 +495,38 @@ mod tests {
             AiProviderKind::OpenaiCompatible,
             "https://api.openai.com/v1"
         ));
+    }
+
+    #[test]
+    fn builds_image_requests() {
+        let image = ProviderImage {
+            mime_type: "image/png",
+            data_base64: "c2NyZWVuc2hvdA==",
+        };
+        let openai = request_body(
+            AiProviderKind::OpenaiCompatible,
+            "vision-model",
+            "system",
+            "describe",
+            Some(&image),
+        );
+        assert_eq!(openai["messages"][1]["content"][1]["type"], "image_url");
+        let anthropic = request_body(
+            AiProviderKind::Anthropic,
+            "claude",
+            "system",
+            "describe",
+            Some(&image),
+        );
+        assert_eq!(anthropic["messages"][0]["content"][0]["type"], "image");
+        let ollama = request_body(
+            AiProviderKind::Ollama,
+            "llava",
+            "system",
+            "describe",
+            Some(&image),
+        );
+        assert_eq!(ollama["messages"][1]["images"][0], "c2NyZWVuc2hvdA==");
     }
 
     #[test]

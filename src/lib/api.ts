@@ -11,6 +11,10 @@ import type {
   AgentApplyResult,
   AgentPreview,
   AgentProposal,
+  AssistantPreview,
+  AssistantReply,
+  AssistantTurn,
+  AssistantFocus,
   AgentSkill,
   Approval,
   BundleExportResult,
@@ -49,6 +53,10 @@ import type {
   TestCase,
   TestCaseInput,
   TestCaseTemplate,
+  TemplateBundleApplyResult,
+  TemplateBundleExport,
+  TemplateBundleImportResult,
+  TestTemplateBundle,
 } from "@/types";
 
 export const api = {
@@ -81,6 +89,14 @@ export const api = {
     ipc<TestCase[]>("reorder_test_cases", { engagementId, orderedIds }),
   createTestCasesFromTemplates: (engagementId: string, templateIds: string[]) =>
     ipc<TestCase[]>("create_test_cases_from_templates", { engagementId, templateIds }),
+  listTestBundles: () => ipc<TestTemplateBundle[]>("list_test_bundles"),
+  createTestCasesFromBundle: (engagementId: string, bundleId: string) =>
+    ipc<TemplateBundleApplyResult>("create_test_cases_from_bundle", { engagementId, bundleId }),
+  exportTestBundle: (bundleId: string) =>
+    ipc<TemplateBundleExport>("export_template_bundle", { bundleId }),
+  importTestBundle: (json: string) =>
+    ipc<TemplateBundleImportResult>("import_template_bundle", { json }),
+  deleteTestBundle: (bundleId: string) => ipc<DeleteResult>("delete_template_bundle", { bundleId }),
 
   listFindings: (engagementId: string) => ipc<Finding[]>("list_findings", { engagementId }),
   createFinding: (input: FindingInput) => ipc<Finding>("create_finding", { input }),
@@ -153,6 +169,17 @@ export const api = {
   runAgentSkill: (consentId: string) => ipc<AgentProposal>("run_agent_skill", { consentId }),
   applyAgentProposal: (proposalId: string) =>
     ipc<AgentApplyResult>("apply_agent_proposal", { proposalId }),
+  previewAssistantChat: (
+    engagementId: string,
+    providerId: string,
+    message: string,
+    history: AssistantTurn[],
+    focus: AssistantFocus,
+  ) =>
+    ipc<AssistantPreview>("preview_assistant_chat", {
+      input: { engagementId, providerId, message, history, focus },
+    }),
+  runAssistantChat: (consentId: string) => ipc<AssistantReply>("run_assistant_chat", { consentId }),
 
   listPluginPublishers: () => ipc<PluginPublisher[]>("list_plugin_publishers"),
   addPluginPublisher: (input: AddPluginPublisherInput) =>

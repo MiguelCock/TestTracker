@@ -67,3 +67,51 @@ AI policy does not apply; local providers are allowed, and non-local providers r
 cloud-consent checkbox before the preview is created. The redacted preview is still shown and
 consumed by the provider call. The returned draft is validated, held in memory, and only written
 after **Create engagement**. See `docs/imports.md`.
+
+## Engagement assistant
+
+The engagement **Assistant** is the first tab in an engagement. It combines the agent context with a
+bounded conversation and chooses one action from a server-approved catalog:
+
+- application summary
+- attack surface
+- assumptions
+- test cases
+- test approach
+- finding draft
+- finding improvement
+- no action / read-only answer
+
+The model returns:
+
+```json
+{
+  "message": "Short answer",
+  "action": {
+    "type": "finding_improve",
+    "targetId": "finding-uuid",
+    "payload": {}
+  }
+}
+```
+
+The server validates the action type, target ownership, payload shape, and engagement context. The
+proposal remains in memory until the user selects **Apply**. The UI shows the detected action and
+proposal payload.
+
+### Focus and deep links
+
+- Test tracker **Ask assistant** focuses a test case.
+- Findings **Ask assistant** focuses a finding and can propose a finding improvement.
+- Evidence **Analyze with AI** focuses one evidence item.
+- Focus is passed in the URL and can be cleared in the assistant header.
+
+### Evidence and images
+
+Text is extracted from text-like evidence, PDFs, and DOCX files. PNG, JPEG, and WebP images can be
+attached for a vision-capable provider. Images are decoded, resized to a maximum dimension of 2048
+pixels, re-encoded to strip metadata, and capped at 4 MB. Redaction applies to text, not pixels.
+Image content is sent only after the user selects **Analyze with AI** and approves the preview.
+
+The audit log records the focus, provider, model, prompt/response hashes, token usage, redaction
+count, action metadata, and image hashes. It does not store message content or image bytes.

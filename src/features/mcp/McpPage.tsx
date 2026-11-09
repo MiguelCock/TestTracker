@@ -30,6 +30,7 @@ const skillLabel: Record<AgentSkill, string> = {
   test_cases: "Test cases",
   test_approach: "Test approach",
   finding_draft: "Finding draft",
+  finding_improve: "Improve finding",
 };
 
 const stateTone: Record<McpApprovalState, "neutral" | "success" | "warning" | "danger"> = {
@@ -356,6 +357,31 @@ export function McpPage() {
                 ))}
               </div>
             )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Examples"
+            description="Copy these into your MCP client. Read calls run immediately; propose calls wait for approval."
+          />
+          <CardBody className="space-y-3">
+            <ul className="space-y-1.5 text-xs text-slate-300">
+              <li>“List my engagements and summarize open critical findings.”</li>
+              <li>“For engagement &lt;id&gt;, propose five authorization test cases.”</li>
+              <li>
+                “Read test case &lt;id&gt; and draft a finding only if the result supports it.”
+              </li>
+              <li>“Show the evidence linked to finding &lt;id&gt;.”</li>
+              <li>“Check MCP approval &lt;id&gt;.”</li>
+            </ul>
+            <pre className="overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-400">
+              {`curl -s ${status.data?.endpoint ?? "http://127.0.0.1:37621/mcp"} \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'`}
+            </pre>
           </CardBody>
         </Card>
 

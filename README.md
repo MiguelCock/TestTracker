@@ -12,19 +12,21 @@ Built with Tauri 2, Rust, React 19, and TypeScript.
 - **Encrypted local vault** — Argon2id passphrase derivation and a SQLCipher database.
 - **Engagements** — project metadata, scope assets, attack surface, risks, assumptions, contacts,
   status, and versioning.
-- **Test tracker** — reusable domain templates (web, API, mobile, thick client, container, cloud,
-  Windows, SAP, AI, BI), status, results, and notes.
+- **Test tracker** — a large reusable template library with curated bundles, cross-team JSON
+  import/export, status, results, and notes.
 - **Findings** — structured records with server-computed Probability × Impact severity, OWASP/CWE
   references, remediation, retest status, owner, and linked test cases.
 - **Encrypted evidence** — screenshots and files encrypted per engagement with integrity hashes,
   previews, downloads, and links to findings/tests.
 - **Review and sign-off** — immutable snapshots and Ed25519-signed reviewer decisions verified
   locally.
-- **Document generation** — test plan, test-case tracker, findings register, executive summary, and
-  technical report as PDF, DOCX, or XLSX. Generated files are encrypted at rest.
-- **AI assistant and agent skills** — provider connections, per-engagement policy, redaction
-  preview, one-time consent, and audit logging. Agent skills draft summaries, assumptions, tests,
-  test approaches, and findings with explicit apply approval. Local-only is the default.
+- **Document generation** — styled test plan, test-case tracker, findings register, executive
+  summary, and technical report as PDF, DOCX, or XLSX, with color-coded cover pages, tables, and
+  severity/status highlights. Generated files are encrypted at rest.
+- **Engagement assistant** — an auto-routing agent that reads engagement context, drafts summaries,
+  tests, test approaches, and findings, improves existing findings, and summarizes text or image
+  evidence. Every write needs explicit approval. Provider connections, per-engagement policy,
+  redaction preview, one-time consent, and audit logging are built in. Local-only is the default.
 - **Assessment import** — create a new engagement from a previous XLSX/XLSM tracker, DOCX, PDF,
   Markdown, JSON, or text assessment. Tracker spreadsheets are parsed deterministically; other
   formats can use AI to produce a reviewable draft. The source file is not stored.
@@ -95,7 +97,10 @@ Open an engagement to access its tabs.
 
 ### Test tracker
 
-- **From templates** adds reusable test cases by domain.
+- **From templates** adds reusable test cases by domain or from a curated bundle.
+- **Template bundles** can be added as a set, exported as `.tttemplates.json`, and imported for
+  cross-team updates. Imported bundles are validated and can be deleted; built-in bundles are
+  immutable. See `docs/test-library.md`.
 - **Custom test** creates a blank test case.
 - Change status inline, edit the approach, result, and notes, and search/filter large trackers.
 - Reorder tests with the up/down controls (filters must be cleared while reordering).
@@ -116,21 +121,26 @@ Open an engagement to access its tabs.
 - Preview images and text, download the decrypted file, or delete the evidence.
 - Evidence is stored under the app data directory, never in the repository.
 
-### AI assistant
+### Assistant
 
+- **Assistant** is the first tab when you open an engagement. It has the engagement context and a
+  fixed action catalog, and chooses the action itself from your request.
 - Add providers in **Settings → AI providers**: Ollama/local, OpenAI-compatible, Anthropic, or Azure
-  OpenAI. Credentials are encrypted and never returned to the interface.
+  OpenAI. Credentials are encrypted and never returned to the interface. Mark a provider as
+  **supports image input** only when the selected model can process images.
 - Set the per-engagement **AI policy**: Off, Local models only (default), or Approved cloud
   providers.
-- Open the **AI** tab, choose a provider and purpose, paste the context you intend to share, and
-  select **Preview redactions**.
-- Review the exact redacted payload. Sending requires a fresh, single-use consent that expires in
-  five minutes.
-- Responses are drafts and are not saved to the engagement. The audit log stores provider, model,
-  purpose, prompt/response hashes, token usage, and redaction count — not message content.
-- Agent skills are available on the engagement overview (summary, attack surface, assumptions), the
-  test tracker (**Generate tests**, and **AI draft** per test for approach or finding). Each skill
-  previews the server-built context and requires an explicit **Apply**. See `docs/ai-agent.md`.
+- Ask a question or use a quick prompt. The server builds a scoped, redacted prompt and shows the
+  exact payload before sending. Consent expires in five minutes and is single-use.
+- The assistant can propose summaries, tests, test approaches, finding drafts, and finding
+  improvements. Every proposal has an explicit **Apply**; nothing is written automatically.
+- Open a finding, test, or evidence item with **Ask assistant** to focus the conversation on it.
+  Image evidence uses a vision-capable provider and is re-encoded to strip metadata before sending.
+- Evidence text extraction supports text, Markdown, JSON, CSV, XML, PDF, and DOCX. Images support
+  PNG, JPEG, and WebP; no OCR is performed.
+- Conversation history stays in memory for the unlocked session. The audit log stores provider,
+  model, focus, hashes, token usage, and action metadata, not message content or image bytes.
+- See `docs/ai-agent.md` for action and security details.
 - Redaction is best-effort. Local-only permits localhost endpoints, which may themselves proxy to a
   cloud service; use a trusted local setup.
 - Consumer AI subscriptions generally do not expose API access. Use official APIs, cloud accounts,
@@ -206,7 +216,8 @@ Open an engagement to access its tabs.
 ### Documents
 
 - Generate a **test plan**, **test-case tracker**, **findings register**, **executive summary**, or
-  **technical report** from the current engagement data.
+  **technical report** from the current engagement data with a colored cover page, section
+  headings, and severity/status highlights.
 - Choose **PDF** or **DOCX** for reports. **XLSX** is available for the test-case tracker and
   findings register.
 - Generated files are encrypted in the app data directory. Download decrypts them locally.
@@ -232,7 +243,8 @@ minutes of inactivity.
 - The database is encrypted with SQLCipher; evidence blobs and generated documents are encrypted with per-engagement keys.
 - AI provider keys are encrypted with the vault key and only decrypted in memory for an approved request.
 - AI prompts require a redaction preview and a server-side one-time consent; cloud providers are blocked unless the engagement policy allows them.
-- Agent skills receive only scoped engagement context, return validated JSON, and cannot write until the user applies the proposal.
+- Assistant actions receive only scoped engagement context, return validated JSON, and cannot write until the user applies the proposal.
+- Image analysis is opt-in per evidence item and only uses providers explicitly marked as vision-capable. Images are re-encoded and metadata is stripped before sending.
 - The MCP bridge binds only to loopback, requires a bearer token, validates Host/Origin, exposes no direct write tools, and stops on vault lock.
 - Assessment import treats document text as untrusted, uses the redaction pipeline for AI prompts, requires explicit cloud consent for non-local providers, and only writes after draft approval.
 - Plugins are signed by trusted publishers, verified on install, hash-checked before every run, and executed with no filesystem, network, or WASI access.

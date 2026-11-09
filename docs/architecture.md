@@ -10,7 +10,7 @@ Implemented foundations:
 - Encrypted local vault (Argon2id + SQLCipher).
 - Local profile with an Ed25519 signing identity.
 - Engagements, scope assets, risks, assumptions, contacts.
-- Test-case tracker with reusable domain templates.
+- Test-case tracker with a large template library and curated/imported bundles.
 - Structured findings with the Probability × Impact severity matrix and OWASP/CWE fields.
 - Encrypted evidence store with per-engagement key derivation.
 - Immutable engagement snapshots and Ed25519-signed reviewer approvals.
@@ -22,6 +22,10 @@ Implemented foundations:
   approval for summaries, assumptions, tests, test approaches, and findings.
 - Optional local MCP server bridge with a loopback-only Streamable HTTP endpoint, bearer-token
   authentication, read tools, draft-only proposal tools, and in-app approval.
+- Engagement assistant with auto-selected validated actions, finding improvement, focused
+  test/finding/evidence context, and text/image evidence analysis.
+- Curated test templates and bundles with validated JSON import/export.
+- Styled PDF, DOCX, and XLSX report output with cover pages and severity/status color treatment.
 - Signed read-only WebAssembly plugins with a trusted-publisher store, capability declarations, and
   a fuel-/memory-limited runtime.
 - Passphrase-encrypted engagement bundles with signed manifests, hash verification, and logical
@@ -44,7 +48,7 @@ Tauri core (Rust) — all trust decisions
    ├─ AI gateway
    ├─ MCP bridge (loopback HTTP, token, approval queue)
    ├─ WASM plugin host
-   └─ document renderers (planned)
+   └─ document renderers (PDF, DOCX, XLSX)
         │
         ├─ OS keychain / passphrase-derived keys
         ├─ encrypted evidence and generated-document store
@@ -137,6 +141,10 @@ cd src-tauri && cargo clippy --all-targets -- -D warnings
 - **Local MCP bridge with no direct writes**: the MCP server binds to loopback, requires a bearer
   token, validates Host/Origin, and exposes only read tools plus proposals. Proposals are memory
   only until the user approves them in the desktop UI.
+- **Assistant actions are server-validated**: the model may choose only fixed actions, targets are
+  checked against the engagement, and proposals are never auto-applied.
+- **Imported template bundles are data, not code**: JSON bundles are size-limited, hash-checked,
+  validated, and identifier-remapped before storage.
 - **Host-based locality**: local-only policy is decided by the provider URL host, not by provider
   type, so a remote Ollama endpoint still requires approved-cloud policy.
 - **Signed WASM plugins**: packages are Ed25519-signed over a BLAKE3 digest, installed only from

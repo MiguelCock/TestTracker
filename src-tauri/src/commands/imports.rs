@@ -220,6 +220,7 @@ pub async fn run_import_ai(
         api_key: preview.api_key.as_str(),
         system_prompt: IMPORT_SYSTEM_PROMPT,
         prompt: &preview.prompt,
+        image: None,
     })
     .await
     {
