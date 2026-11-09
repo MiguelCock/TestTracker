@@ -146,6 +146,7 @@ export function EngagementDetailPage() {
         <div className="mt-4">
           <TabsContent value="assistant">
             <AssistantPanel
+              key={id}
               engagementId={id}
               focus={assistantFocus}
               onFocusChange={(next) => {

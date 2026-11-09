@@ -25,8 +25,9 @@ Built with Tauri 2, Rust, React 19, and TypeScript.
   severity/status highlights. Generated files are encrypted at rest.
 - **Engagement assistant** — an auto-routing agent that reads engagement context, drafts summaries,
   tests, test approaches, and findings, improves existing findings, and summarizes text or image
-  evidence. Every write needs explicit approval. Provider connections, per-engagement policy,
-  redaction preview, one-time consent, and audit logging are built in. Local-only is the default.
+  evidence. It can review encrypted Postman, Burp XML, HAR, Procmon, OpenAPI, GraphQL, Nmap, and text
+  reference files through read-only tools with per-call approval. Every write needs explicit
+  approval. Local-only is the default.
 - **Assessment import** — create a new engagement from a previous XLSX/XLSM tracker, DOCX, PDF,
   Markdown, JSON, or text assessment. Tracker spreadsheets are parsed deterministically; other
   formats can use AI to produce a reviewable draft. The source file is not stored.
@@ -138,6 +139,12 @@ Open an engagement to access its tabs.
   Image evidence uses a vision-capable provider and is re-encoded to strip metadata before sending.
 - Evidence text extraction supports text, Markdown, JSON, CSV, XML, PDF, and DOCX. Images support
   PNG, JPEG, and WebP; no OCR is performed.
+- Upload Postman, Burp XML, HAR, Procmon CSV/XML, OpenAPI, GraphQL, Nmap, or text reference files
+  from the Assistant. They are encrypted at rest, parsed locally, and read only through approved
+  tools. Every tool call prompts once, unless you choose **Always allow**; manage those permissions
+  from the Assistant menu. See `docs/ai-agent.md`.
+- The local MCP bridge can be connected to OpenCode through the global config and
+  `TESTTRACKER_MCP_TOKEN`; see `docs/opencode.md`.
 - Conversation history stays in memory for the unlocked session. The audit log stores provider,
   model, focus, hashes, token usage, and action metadata, not message content or image bytes.
 - See `docs/ai-agent.md` for action and security details.
@@ -244,6 +251,7 @@ minutes of inactivity.
 - AI provider keys are encrypted with the vault key and only decrypted in memory for an approved request.
 - AI prompts require a redaction preview and a server-side one-time consent; cloud providers are blocked unless the engagement policy allows them.
 - Assistant actions receive only scoped engagement context, return validated JSON, and cannot write until the user applies the proposal.
+- Reference files are encrypted at rest, engagement-scoped, parsed by bounded Rust parsers, and readable only through explicitly approved read-only tools.
 - Image analysis is opt-in per evidence item and only uses providers explicitly marked as vision-capable. Images are re-encoded and metadata is stripped before sending.
 - The MCP bridge binds only to loopback, requires a bearer token, validates Host/Origin, exposes no direct write tools, and stops on vault lock.
 - Assessment import treats document text as untrusted, uses the redaction pipeline for AI prompts, requires explicit cloud consent for non-local providers, and only writes after draft approval.

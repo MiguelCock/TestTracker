@@ -199,6 +199,7 @@ function AddProviderDialog({
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? "http://localhost:11434");
   const [model, setModel] = useState(provider?.model ?? "");
   const [supportsVision, setSupportsVision] = useState(provider?.supportsVision ?? false);
+  const [contextWindow, setContextWindow] = useState(String(provider?.contextWindow ?? 8192));
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
@@ -224,6 +225,7 @@ function AddProviderDialog({
       baseUrl: baseUrl.trim(),
       model: model.trim(),
       supportsVision,
+      contextWindow: Math.max(1024, Number(contextWindow) || 8192),
       apiKey: apiKey.trim() ? apiKey.trim() : null,
     });
   };
@@ -361,6 +363,18 @@ function AddProviderDialog({
           </p>
         )}
         {modelError && <ErrorBlock message={modelError} />}
+        <Field
+          label="Context window"
+          hint="Approximate model context in tokens. Local Ollama defaults to 8192; increase only if the model supports it."
+        >
+          <Input
+            type="number"
+            min={1024}
+            max={1000000}
+            value={contextWindow}
+            onChange={(event) => setContextWindow(event.target.value)}
+          />
+        </Field>
         <label className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-[11px] text-slate-400">
           <input
             type="checkbox"

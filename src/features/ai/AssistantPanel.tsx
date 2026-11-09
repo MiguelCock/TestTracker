@@ -9,10 +9,12 @@ import {
   Image,
   Lock,
   Send,
+  Settings2,
   ShieldCheck,
   Sparkles,
   Target,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -24,14 +26,19 @@ import { Select, SelectItem } from "@/components/ui/select";
 import { ErrorBlock, LoadingBlock, Spinner } from "@/components/ui/states";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
+import { readFileAsBase64 } from "@/lib/base64";
+import { formatBytes } from "@/lib/format";
 import type {
   AgentProposal,
   AgentSkill,
   AiPolicy,
   AssistantFocus,
   AssistantPreview,
-  AssistantReply,
+  AssistantStep,
+  AssistantToolRequest,
   AssistantTurn,
+  EngagementFile,
+  ToolPermission,
 } from "@/types";
 
 const policyLabel: Record<AiPolicy, string> = {
@@ -78,7 +85,54 @@ export function AssistantPanel({
   const [prompt, setPrompt] = useState("");
   const [preview, setPreview] = useState<AssistantPreview | null>(null);
   const [previewMessage, setPreviewMessage] = useState("");
+  const [toolRequest, setToolRequest] = useState<AssistantToolRequest | null>(null);
+  const [fileIds, setFileIds] = useState<Set<string>>(new Set());
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const files = useQuery({
+    queryKey: ["engagement-files", engagementId],
+    queryFn: () => api.listEngagementFiles(engagementId),
+  });
+  const permissions = useQuery({
+    queryKey: ["tool-permissions", engagementId],
+    queryFn: () => api.listToolPermissions(engagementId),
+    enabled: permissionsOpen,
+  });
+  const uploadFile = useMutation({
+    mutationFn: async (file: File) => {
+      if (file.size > 25 * 1024 * 1024) {
+        throw new Error("Reference files must be 25 MB or smaller.");
+      }
+      const data = await readFileAsBase64(file);
+      return api.addEngagementFile(engagementId, file.name, file.type, data);
+    },
+    onSuccess: (file) => {
+      setError(null);
+      setFileIds((current) => new Set(current).add(file.id));
+      void queryClient.invalidateQueries({ queryKey: ["engagement-files", engagementId] });
+      void queryClient.invalidateQueries({ queryKey: ["audit", engagementId] });
+    },
+    onError: (mutationError) => setError(mutationError.message),
+  });
+  const deleteFile = useMutation({
+    mutationFn: (id: string) => api.deleteEngagementFile(id),
+    onSuccess: (_result, id) => {
+      setFileIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      void queryClient.invalidateQueries({ queryKey: ["engagement-files", engagementId] });
+    },
+    onError: (mutationError) => setError(mutationError.message),
+  });
+  const revokePermission = useMutation({
+    mutationFn: (tool: string) => api.revokeToolPermission(engagementId, tool),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tool-permissions", engagementId] });
+    },
+    onError: (mutationError) => setError(mutationError.message),
+  });
   const conversation = useQuery<AssistantMessage[]>({
     queryKey: ["assistant-conversation", engagementId],
     queryFn: () => [],
@@ -129,7 +183,14 @@ export function AssistantPanel({
         role: item.role,
         content: item.content,
       }));
-      return api.previewAssistantChat(engagementId, selectedProviderId, message, history, focus);
+      return api.previewAssistantChat(
+        engagementId,
+        selectedProviderId,
+        message,
+        history,
+        focus,
+        Array.from(fileIds),
+      );
     },
     onSuccess: (result) => {
       setError(null);
@@ -137,6 +198,51 @@ export function AssistantPanel({
     },
     onError: (mutationError) => setError(mutationError.message),
   });
+
+  const resolveTool = useMutation({
+    mutationFn: ({
+      request,
+      decision,
+    }: {
+      request: AssistantToolRequest;
+      decision: "allow_once" | "always" | "deny";
+    }) => api.resolveAssistantTool(request.runId, request.callId, decision),
+    onSuccess: (step) => {
+      setToolRequest(null);
+      handleStep(step);
+    },
+    onError: (mutationError) => {
+      setToolRequest(null);
+      setError(mutationError.message);
+    },
+  });
+
+  const handleStep = (step: AssistantStep) => {
+    if (step.kind === "final") {
+      setMessages((current) => [
+        ...current,
+        { role: "user", content: previewMessage },
+        {
+          role: "assistant",
+          content: step.reply.message,
+          note: [step.reply.providerName, step.reply.model].join(" · "),
+          proposal: step.reply.proposal ?? undefined,
+        },
+      ]);
+      setPreview(null);
+      setPrompt("");
+      void queryClient.invalidateQueries({ queryKey: ["audit", engagementId] });
+      return;
+    }
+    if (step.kind === "tool_request") {
+      setPreview(null);
+      setToolRequest(step);
+      return;
+    }
+    setToolRequest(null);
+    setPreview(null);
+    setError(step.message);
+  };
 
   const applyProposal = useMutation({
     mutationFn: ({ proposal }: { messageIndex: number; proposal: AgentProposal }) =>
@@ -171,11 +277,16 @@ export function AssistantPanel({
             changes. Every write needs your approval.
           </p>
         </div>
-        {messages.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => setMessages(() => [])}>
-            <Trash2 className="h-3.5 w-3.5" /> Clear
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setPermissionsOpen(true)}>
+            <Settings2 className="h-3.5 w-3.5" /> Tool permissions
           </Button>
-        )}
+          {messages.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setMessages(() => [])}>
+              <Trash2 className="h-3.5 w-3.5" /> Clear
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && <ErrorBlock message={error} />}
@@ -234,6 +345,69 @@ export function AssistantPanel({
                 {selectedProvider?.supportsVision && <Badge tone="accent">Vision</Badge>}
                 <Badge tone="info">{policyLabel[activePolicy]}</Badge>
               </div>
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Reference files"
+              description="Upload Postman, Burp XML, HAR, Procmon CSV/XML, OpenAPI, GraphQL, Nmap, or text files for this engagement."
+              action={
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-200 hover:border-slate-600">
+                  <Upload className="h-3.5 w-3.5" />
+                  Upload
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".json,.xml,.har,.csv,.yaml,.yml,.graphql,.gql,.http,.txt,.md,.log"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) uploadFile.mutate(file);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              }
+            />
+            <CardBody className="space-y-3">
+              {files.isLoading && <p className="text-xs text-slate-500">Loading files…</p>}
+              {files.isError && <ErrorBlock message={files.error.message} />}
+              {uploadFile.isPending && (
+                <p className="text-xs text-slate-500">Parsing and encrypting…</p>
+              )}
+              {files.data && files.data.length === 0 && (
+                <p className="text-xs text-slate-500">
+                  No reference files yet. Upload the exports the assistant should review.
+                </p>
+              )}
+              {files.data && files.data.length > 0 && (
+                <div className="space-y-2">
+                  {files.data.map((file) => (
+                    <ReferenceFileRow
+                      key={file.id}
+                      file={file}
+                      selected={fileIds.has(file.id)}
+                      onToggle={() =>
+                        setFileIds((current) => {
+                          const next = new Set(current);
+                          if (next.has(file.id)) next.delete(file.id);
+                          else next.add(file.id);
+                          return next;
+                        })
+                      }
+                      onDelete={() => {
+                        if (window.confirm(`Delete reference file "${file.filename}"?`)) {
+                          deleteFile.mutate(file.id);
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-slate-600">
+                Selected file summaries are included in the assistant context. Detailed file content
+                is read only through approved tool calls.
+              </p>
             </CardBody>
           </Card>
 
@@ -376,21 +550,22 @@ export function AssistantPanel({
           preview={preview}
           message={previewMessage}
           onClose={() => setPreview(null)}
-          onSent={(result) => {
-            setMessages((current) => [
-              ...current,
-              { role: "user", content: previewMessage },
-              {
-                role: "assistant",
-                content: result.message,
-                note: [result.providerName, result.model].join(" · "),
-                proposal: result.proposal ?? undefined,
-              },
-            ]);
-            setPreview(null);
-            setPrompt("");
-            void queryClient.invalidateQueries({ queryKey: ["audit", engagementId] });
-          }}
+          onStep={handleStep}
+        />
+      )}
+      {toolRequest && (
+        <ToolRequestDialog
+          request={toolRequest}
+          busy={resolveTool.isPending}
+          onDecision={(decision) => resolveTool.mutate({ request: toolRequest, decision })}
+        />
+      )}
+      {permissionsOpen && (
+        <ToolPermissionsDialog
+          permissions={permissions.data ?? []}
+          loading={permissions.isLoading}
+          onClose={() => setPermissionsOpen(false)}
+          onRevoke={(tool) => revokePermission.mutate(tool)}
         />
       )}
     </div>
@@ -438,18 +613,18 @@ function AssistantPreviewDialog({
   preview,
   message,
   onClose,
-  onSent,
+  onStep,
 }: {
   preview: AssistantPreview;
   message: string;
   onClose: () => void;
-  onSent: (result: AssistantReply) => void;
+  onStep: (step: AssistantStep) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const send = useMutation({
     mutationFn: () => api.runAssistantChat(preview.consentId),
-    onSuccess: (result) => {
-      onSent(result);
+    onSuccess: (step) => {
+      onStep(step);
     },
     onError: (mutationError) => setError(mutationError.message),
   });
@@ -579,6 +754,143 @@ function promptsFor(focus: AssistantFocus): string[] {
     "Draft missing authorization and authentication tests.",
     "Draft an executive summary narrative.",
   ];
+}
+
+function ReferenceFileRow({
+  file,
+  selected,
+  onToggle,
+  onDelete,
+}: {
+  file: EngagementFile;
+  selected: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const summary = file.summary as Record<string, unknown>;
+  const count =
+    (summary.requests as number | undefined) ??
+    (summary.rows as number | undefined) ??
+    (summary.hosts as number | undefined) ??
+    (summary.operations as number | undefined) ??
+    (summary.items as number | undefined);
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggle}
+        className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p className="truncate text-xs font-medium text-slate-200">{file.filename}</p>
+          <Badge tone="accent">{file.kind}</Badge>
+          <span className="text-[11px] text-slate-500">{formatBytes(file.size)}</span>
+        </div>
+        <p className="mt-1 text-[11px] text-slate-500">
+          {count != null ? `${count} item${count === 1 ? "" : "s"}` : "Parsed reference"}
+        </p>
+      </div>
+      <Button variant="ghost" size="icon" aria-label="Delete reference file" onClick={onDelete}>
+        <Trash2 className="h-3.5 w-3.5 text-slate-500" />
+      </Button>
+    </div>
+  );
+}
+
+function ToolRequestDialog({
+  request,
+  busy,
+  onDecision,
+}: {
+  request: AssistantToolRequest;
+  busy: boolean;
+  onDecision: (decision: "allow_once" | "always" | "deny") => void;
+}) {
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onDecision("deny");
+      }}
+      title="Approve assistant tool call"
+      description="The assistant wants to read selected local data. Nothing is written by a tool call."
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onDecision("deny")} disabled={busy}>
+            Deny and stop
+          </Button>
+          <Button variant="secondary" onClick={() => onDecision("always")} disabled={busy}>
+            Always allow
+          </Button>
+          <Button onClick={() => onDecision("allow_once")} disabled={busy}>
+            {busy ? <Spinner /> : <CheckCircle2 className="h-4 w-4" />} Allow once
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="accent">{request.tool}</Badge>
+          <span className="text-[11px] text-slate-500">run {request.runId.slice(0, 8)}…</span>
+        </div>
+        <p className="text-xs text-slate-400">
+          Allow always applies only to this tool in this engagement. You can remove it from Tool
+          permissions at any time.
+        </p>
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-300">
+          {JSON.stringify(request.arguments, null, 2)}
+        </pre>
+      </div>
+    </Dialog>
+  );
+}
+
+function ToolPermissionsDialog({
+  permissions,
+  loading,
+  onClose,
+  onRevoke,
+}: {
+  permissions: ToolPermission[];
+  loading: boolean;
+  onClose: () => void;
+  onRevoke: (tool: string) => void;
+}) {
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => !next && onClose()}
+      title="Tool permissions"
+      description="These tools no longer prompt in this engagement."
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+      }
+    >
+      {loading && <p className="text-xs text-slate-500">Loading permissions…</p>}
+      {!loading && permissions.length === 0 && (
+        <p className="text-xs text-slate-500">No always-allowed tools.</p>
+      )}
+      {permissions.length > 0 && (
+        <div className="space-y-2">
+          {permissions.map((permission) => (
+            <div
+              key={permission.tool}
+              className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2"
+            >
+              <span className="font-mono text-xs text-slate-200">{permission.tool}</span>
+              <Button size="sm" variant="secondary" onClick={() => onRevoke(permission.tool)}>
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Dialog>
+  );
 }
 
 function PolicyWarning({ children }: { children: React.ReactNode }) {

@@ -60,6 +60,9 @@ pub struct ProviderRequest<'a> {
     pub system_prompt: &'a str,
     pub prompt: &'a str,
     pub image: Option<&'a ProviderImage<'a>>,
+    pub json_mode: bool,
+    pub json_schema: Option<&'a Value>,
+    pub context_window: Option<u32>,
 }
 
 pub async fn send(request: &ProviderRequest<'_>) -> AppResult<ProviderReply> {
@@ -70,6 +73,9 @@ pub async fn send(request: &ProviderRequest<'_>) -> AppResult<ProviderReply> {
         request.system_prompt,
         request.prompt,
         request.image,
+        request.json_mode,
+        request.json_schema,
+        request.context_window,
     );
     let local = is_local(request.kind, request.base_url);
     let mut builder = reqwest::Client::builder()
@@ -318,12 +324,16 @@ pub fn endpoint(kind: AiProviderKind, base_url: &str) -> String {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn request_body(
     kind: AiProviderKind,
     model: &str,
     system: &str,
     prompt: &str,
     image: Option<&ProviderImage<'_>>,
+    json_mode: bool,
+    json_schema: Option<&Value>,
+    context_window: Option<u32>,
 ) -> Value {
     match kind {
         AiProviderKind::Ollama => {
@@ -331,14 +341,23 @@ pub fn request_body(
             if let Some(image) = image {
                 user["images"] = json!([image.data_base64]);
             }
-            json!({
+            let mut body = json!({
                 "model": model,
                 "messages": [
                     { "role": "system", "content": system },
                     user
                 ],
                 "stream": false
-            })
+            });
+            if let Some(schema) = json_schema {
+                body["format"] = schema.clone();
+            } else if json_mode {
+                body["format"] = json!("json");
+            }
+            if let Some(context_window) = context_window {
+                body["options"] = json!({ "num_ctx": context_window });
+            }
+            body
         }
         AiProviderKind::OpenaiCompatible | AiProviderKind::AzureOpenai => {
             let user_content = match image {
@@ -509,6 +528,9 @@ mod tests {
             "system",
             "describe",
             Some(&image),
+            false,
+            None,
+            Some(8192),
         );
         assert_eq!(openai["messages"][1]["content"][1]["type"], "image_url");
         let anthropic = request_body(
@@ -517,6 +539,9 @@ mod tests {
             "system",
             "describe",
             Some(&image),
+            false,
+            None,
+            Some(8192),
         );
         assert_eq!(anthropic["messages"][0]["content"][0]["type"], "image");
         let ollama = request_body(
@@ -525,8 +550,27 @@ mod tests {
             "system",
             "describe",
             Some(&image),
+            false,
+            None,
+            Some(8192),
         );
         assert_eq!(ollama["messages"][1]["images"][0], "c2NyZWVuc2hvdA==");
+    }
+
+    #[test]
+    fn builds_ollama_json_and_context_options() {
+        let body = request_body(
+            AiProviderKind::Ollama,
+            "llama3.2",
+            "system",
+            "return json",
+            None,
+            true,
+            None,
+            Some(8192),
+        );
+        assert_eq!(body["format"], "json");
+        assert_eq!(body["options"]["num_ctx"], 8192);
     }
 
     #[test]

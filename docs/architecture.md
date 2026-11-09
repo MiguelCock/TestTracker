@@ -25,6 +25,10 @@ Implemented foundations:
 - Engagement assistant with auto-selected validated actions, finding improvement, focused
   test/finding/evidence context, and text/image evidence analysis.
 - Curated test templates and bundles with validated JSON import/export.
+- Encrypted reference-file review with Postman, Burp XML, HAR, Procmon, OpenAPI, GraphQL, Nmap,
+  and text parsers.
+- Read-only assistant tools with per-call permission prompts, revocable always-allow rules, and an
+  audited bounded tool loop.
 - Styled PDF, DOCX, and XLSX report output with cover pages and severity/status color treatment.
 - Signed read-only WebAssembly plugins with a trusted-publisher store, capability declarations, and
   a fuel-/memory-limited runtime.

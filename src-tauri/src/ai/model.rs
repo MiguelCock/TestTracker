@@ -5,6 +5,10 @@ use zeroize::Zeroizing;
 
 use crate::error::{AppError, AppResult};
 
+fn default_context_window() -> u32 {
+    8192
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AiProviderKind {
@@ -131,6 +135,7 @@ pub struct AiProviderSummary {
     pub has_key: bool,
     pub is_local: bool,
     pub supports_vision: bool,
+    pub context_window: u32,
     pub created_at: String,
 }
 
@@ -143,6 +148,8 @@ pub struct AiProviderInput {
     pub model: String,
     #[serde(default)]
     pub supports_vision: bool,
+    #[serde(default = "default_context_window")]
+    pub context_window: u32,
     #[serde(default)]
     pub api_key: Option<String>,
 }

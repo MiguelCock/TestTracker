@@ -115,3 +115,38 @@ Image content is sent only after the user selects **Analyze with AI** and approv
 
 The audit log records the focus, provider, model, prompt/response hashes, token usage, redaction
 count, action metadata, and image hashes. It does not store message content or image bytes.
+
+## Reference files and tools
+
+The Assistant can review files uploaded to the **Reference files** panel:
+
+- Postman collections
+- Burp XML exports
+- HAR files
+- Procmon CSV/XML exports
+- OpenAPI/Swagger JSON or YAML
+- GraphQL SDL
+- Nmap XML
+- HTTP/text/JSON/CSV/Markdown
+
+Reference files are encrypted at rest and scoped to one engagement. Deterministic Rust parsers
+produce compact summaries; the model reads details only through tools.
+
+Tools are read-only. Every tool call pauses for an explicit decision:
+
+- **Allow once**
+- **Always allow this tool for this engagement**
+- **Deny and stop**
+
+Always-allowed tools are listed under **Tool permissions** and can be removed there. Tool calls,
+decisions, arguments hashes, result hashes, and durations are audited. Tool results are redacted and
+size-capped before being sent to a provider.
+
+Agent runs are bounded to 6 provider rounds and 12 tool calls. Write actions still require the final
+proposal Apply step.
+
+## Ollama notes
+
+Assistant and structured agent calls use Ollama JSON mode and a provider context-window budget. If a
+local model still returns a malformed envelope, the assistant returns its message without applying
+an action; use a larger/stronger model for reliable structured proposals.

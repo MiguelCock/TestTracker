@@ -5,6 +5,7 @@ pub mod bundles;
 pub mod documents;
 pub mod engagements;
 pub mod evidence;
+pub mod files;
 pub mod findings;
 pub mod imports;
 pub mod mcp;

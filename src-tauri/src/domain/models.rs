@@ -447,3 +447,33 @@ pub struct TemplateBundleApplyResult {
     pub skipped: usize,
     pub test_cases: Vec<TestCase>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngagementFile {
+    pub id: String,
+    pub engagement_id: String,
+    pub kind: String,
+    pub filename: String,
+    pub mime_type: String,
+    pub size: i64,
+    pub summary: serde_json::Value,
+    pub created_by: String,
+    pub created_at: String,
+}
+
+#[derive(Clone)]
+pub struct StoredEngagementFile {
+    pub file: EngagementFile,
+    pub plaintext_hash: String,
+    pub nonce: String,
+    pub path: String,
+    pub extracted_text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolPermission {
+    pub tool: String,
+    pub created_at: String,
+}

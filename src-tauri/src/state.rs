@@ -7,7 +7,7 @@ use rusqlite::Connection;
 use zeroize::Zeroizing;
 
 use crate::ai::agent::{AgentPreviewRecord, AgentProposalRecord};
-use crate::ai::assistant::AssistantPreviewRecord;
+use crate::ai::assistant::{AssistantPreviewRecord, AssistantRunRecord};
 use crate::ai::model::AiPreview;
 use crate::domain::models::{ProfileSummary, SessionInfo};
 use crate::error::{AppError, AppResult};
@@ -35,6 +35,7 @@ pub struct AppState {
     agent_previews: Mutex<HashMap<String, AgentPreviewRecord>>,
     agent_proposals: Mutex<HashMap<String, AgentProposalRecord>>,
     assistant_previews: Mutex<HashMap<String, AssistantPreviewRecord>>,
+    assistant_runs: Mutex<HashMap<String, AssistantRunRecord>>,
     import_extractions: Mutex<HashMap<String, ImportExtractionRecord>>,
     import_previews: Mutex<HashMap<String, ImportPreviewRecord>>,
     import_drafts: Mutex<HashMap<String, ImportDraftRecord>>,
@@ -54,6 +55,7 @@ impl AppState {
             agent_previews: Mutex::new(HashMap::new()),
             agent_proposals: Mutex::new(HashMap::new()),
             assistant_previews: Mutex::new(HashMap::new()),
+            assistant_runs: Mutex::new(HashMap::new()),
             import_extractions: Mutex::new(HashMap::new()),
             import_previews: Mutex::new(HashMap::new()),
             import_drafts: Mutex::new(HashMap::new()),
@@ -126,6 +128,11 @@ impl AppState {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         assistant_previews.clear();
+        let mut assistant_runs = self
+            .assistant_runs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        assistant_runs.clear();
         let mut import_extractions = self
             .import_extractions
             .lock()
@@ -240,6 +247,24 @@ impl AppState {
             .unwrap_or_else(|e| e.into_inner());
         previews.retain(|_, preview| !preview.is_expired());
         previews.remove(id)
+    }
+
+    pub fn insert_assistant_run(&self, run: AssistantRunRecord) {
+        let mut runs = self
+            .assistant_runs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        runs.retain(|_, run| !run.is_expired());
+        runs.insert(run.id.clone(), run);
+    }
+
+    pub fn take_assistant_run(&self, id: &str) -> Option<AssistantRunRecord> {
+        let mut runs = self
+            .assistant_runs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        runs.retain(|_, run| !run.is_expired());
+        runs.remove(id)
     }
 
     pub fn with_session<T>(

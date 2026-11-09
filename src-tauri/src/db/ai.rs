@@ -11,6 +11,7 @@ pub struct StoredAiProvider {
     pub model: String,
     pub encrypted_api_key: String,
     pub supports_vision: bool,
+    pub context_window: u32,
     pub created_by: String,
     pub created_at: String,
 }
@@ -18,8 +19,8 @@ pub struct StoredAiProvider {
 pub fn insert(conn: &Connection, provider: &StoredAiProvider) -> AppResult<()> {
     conn.execute(
         "INSERT INTO ai_providers (
-            id, name, kind, base_url, model, encrypted_api_key, supports_vision, created_by, created_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            id, name, kind, base_url, model, encrypted_api_key, supports_vision, context_window, created_by, created_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![
             provider.id,
             provider.name,
@@ -28,6 +29,7 @@ pub fn insert(conn: &Connection, provider: &StoredAiProvider) -> AppResult<()> {
             provider.model,
             provider.encrypted_api_key,
             provider.supports_vision,
+            provider.context_window,
             provider.created_by,
             provider.created_at,
         ],
@@ -37,7 +39,7 @@ pub fn insert(conn: &Connection, provider: &StoredAiProvider) -> AppResult<()> {
 
 pub fn list(conn: &Connection) -> AppResult<Vec<StoredAiProvider>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, kind, base_url, model, encrypted_api_key, supports_vision, created_by, created_at
+        "SELECT id, name, kind, base_url, model, encrypted_api_key, supports_vision, context_window, created_by, created_at
          FROM ai_providers ORDER BY created_at ASC",
     )?;
     let rows = stmt.query_map([], map_row)?;
@@ -51,7 +53,7 @@ pub fn list(conn: &Connection) -> AppResult<Vec<StoredAiProvider>> {
 pub fn get(conn: &Connection, id: &str) -> AppResult<StoredAiProvider> {
     let row = conn
         .query_row(
-            "SELECT id, name, kind, base_url, model, encrypted_api_key, supports_vision, created_by, created_at
+            "SELECT id, name, kind, base_url, model, encrypted_api_key, supports_vision, context_window, created_by, created_at
              FROM ai_providers WHERE id = ?1",
             [id],
             map_row,
@@ -65,8 +67,8 @@ pub fn update(conn: &Connection, provider: &StoredAiProvider) -> AppResult<()> {
     let changed = conn.execute(
         "UPDATE ai_providers SET
             name = ?1, kind = ?2, base_url = ?3, model = ?4, encrypted_api_key = ?5,
-            supports_vision = ?6
-         WHERE id = ?7",
+            supports_vision = ?6, context_window = ?7
+         WHERE id = ?8",
         rusqlite::params![
             provider.name,
             provider.kind.as_str(),
@@ -74,6 +76,7 @@ pub fn update(conn: &Connection, provider: &StoredAiProvider) -> AppResult<()> {
             provider.model,
             provider.encrypted_api_key,
             provider.supports_vision,
+            provider.context_window,
             provider.id,
         ],
     )?;
@@ -132,6 +135,7 @@ type ProviderRow = (
     String,
     String,
     bool,
+    u32,
     String,
     String,
 );
@@ -147,6 +151,7 @@ fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProviderRow> {
         row.get(6)?,
         row.get(7)?,
         row.get(8)?,
+        row.get(9)?,
     ))
 }
 
@@ -159,6 +164,7 @@ fn to_stored(row: ProviderRow) -> AppResult<StoredAiProvider> {
         model,
         encrypted_api_key,
         supports_vision,
+        context_window,
         created_by,
         created_at,
     ) = row;
@@ -170,6 +176,7 @@ fn to_stored(row: ProviderRow) -> AppResult<StoredAiProvider> {
         model,
         encrypted_api_key,
         supports_vision,
+        context_window,
         created_by,
         created_at,
     })

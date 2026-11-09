@@ -353,6 +353,7 @@ export interface AiProviderSummary {
   hasKey: boolean;
   isLocal: boolean;
   supportsVision: boolean;
+  contextWindow: number;
   createdAt: string;
 }
 
@@ -362,6 +363,7 @@ export interface AiProviderInput {
   baseUrl: string;
   model: string;
   supportsVision: boolean;
+  contextWindow: number;
   apiKey: string | null;
 }
 
@@ -730,4 +732,53 @@ export interface TemplateBundleImportResult {
   version: string;
   templateCount: number;
   updated: boolean;
+}
+
+export interface AssistantReply {
+  message: string;
+  proposal: AgentProposal | null;
+  providerName: string;
+  model: string;
+  promptHash: string;
+  responseHash: string;
+  redactionCount: number;
+  promptTokens: number | null;
+  completionTokens: number | null;
+}
+
+export interface AssistantToolRequest {
+  kind: "tool_request";
+  runId: string;
+  callId: string;
+  tool: string;
+  arguments: Record<string, unknown>;
+}
+
+export interface AssistantFinalStep {
+  kind: "final";
+  reply: AssistantReply;
+}
+
+export interface AssistantCancelledStep {
+  kind: "cancelled";
+  message: string;
+}
+
+export type AssistantStep = AssistantFinalStep | AssistantToolRequest | AssistantCancelledStep;
+
+export interface EngagementFile {
+  id: string;
+  engagementId: string;
+  kind: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  summary: Record<string, unknown>;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface ToolPermission {
+  tool: string;
+  createdAt: string;
 }

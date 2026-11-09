@@ -54,6 +54,8 @@
 | Provider key theft        | Keys wrapped by the master key; never exposed to the webview                  | Planned     |
 | Bundle tampering          | Encryption plus Ed25519 signature; version and hash checks on import          | Planned     |
 | Evidence leakage          | Encrypted blob store, per-engagement keys, crypto-shredding                   | Planned     |
+| Reference-file leakage    | Encryption at rest, engagement scope, explicit tool permission, redaction     | Implemented |
+| Tool overreach            | Read-only allowlist, per-call approval, revocable always-allow, audit hashes  | Implemented |
 | Supply-chain compromise   | Lockfiles, `cargo audit`, `bun audit`, pinned CI actions, SBOM                | Partial     |
 | Malicious update          | Signed updater artifacts with signature verification                          | Planned     |
 | Backup theft              | Encrypted backups with passphrase or recipient keys                           | Planned     |

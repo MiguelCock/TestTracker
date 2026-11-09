@@ -221,6 +221,9 @@ pub async fn run_import_ai(
         system_prompt: IMPORT_SYSTEM_PROMPT,
         prompt: &preview.prompt,
         image: None,
+        json_mode: true,
+        json_schema: None,
+        context_window: None,
     })
     .await
     {

@@ -1,6 +1,7 @@
 pub mod ai;
 pub mod approvals;
 pub mod audit_repo;
+pub mod engagement_files;
 pub mod engagements;
 pub mod evidence;
 pub mod findings;
@@ -56,7 +57,7 @@ pub fn open_encrypted(path: &Path, master_key: &[u8; 32]) -> AppResult<Connectio
 
 pub fn apply_migrations(conn: &mut Connection) -> AppResult<()> {
     let mut version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    while version < 7 {
+    while version < 9 {
         let migration = match version {
             0 => schema::MIGRATION_1,
             1 => schema::MIGRATION_2,
@@ -65,6 +66,8 @@ pub fn apply_migrations(conn: &mut Connection) -> AppResult<()> {
             4 => schema::MIGRATION_5,
             5 => schema::MIGRATION_6,
             6 => schema::MIGRATION_7,
+            7 => schema::MIGRATION_8,
+            8 => schema::MIGRATION_9,
             _ => break,
         };
         let tx = conn.transaction()?;

@@ -31,7 +31,13 @@ vi.mock("@/lib/api", () => ({
     listTestCases: vi.fn(async () => []),
     previewAssistantChat: vi.fn(),
     runAssistantChat: vi.fn(),
+    resolveAssistantTool: vi.fn(),
     applyAgentProposal: vi.fn(),
+    listEngagementFiles: vi.fn(async () => []),
+    addEngagementFile: vi.fn(),
+    deleteEngagementFile: vi.fn(),
+    listToolPermissions: vi.fn(async () => []),
+    revokeToolPermission: vi.fn(),
   },
 }));
 

@@ -168,6 +168,9 @@ pub async fn run_agent_skill(
         system_prompt: &preview.system_prompt,
         prompt: &preview.prompt,
         image: None,
+        json_mode: true,
+        json_schema: None,
+        context_window: None,
     })
     .await
     {

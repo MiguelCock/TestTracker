@@ -32,6 +32,9 @@ Only the current `0.1.x` line is supported while the application is pre-release.
 - Assistant: fixed server-validated actions, explicit apply, bounded context, redacted text
   previews, per-provider vision opt-in, image metadata stripping, and audit metadata only.
 - Template bundles: validated JSON, size/hash checks, domain/text limits, and local ID remapping.
+- Reference files: encrypted at rest, engagement-scoped, parsed with bounded Rust parsers, and
+  reviewed only through read-only tools with explicit per-call approval.
+- Tool permissions: per-engagement, per-tool allow rules can be revoked; every tool call is audited.
 
 ## Release status
 

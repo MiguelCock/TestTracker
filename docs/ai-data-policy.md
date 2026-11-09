@@ -80,6 +80,10 @@ organization-specific rules are planned.
 - AI tool calls and automatic data access are not implemented in v1.
 - No automatic execution of generated scripts.
 - Responses are displayed as plain text and are never auto-applied to findings or reports.
+- Reference files are encrypted at rest and scoped to one engagement. The assistant receives
+  deterministic summaries and can read details only through explicit, audited tool calls.
+- Every tool call requires a per-engagement permission decision. "Allow always" can be revoked from
+  the Assistant tool-permissions menu.
 - Evidence text and images are included only when explicitly selected. Images are re-encoded to
   remove metadata and are capped in size. Redaction cannot inspect pixels.
 

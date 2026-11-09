@@ -349,3 +349,38 @@ CREATE TABLE test_template_bundle_items (
 CREATE INDEX idx_template_bundle_items_bundle
     ON test_template_bundle_items(bundle_id, sort_order);
 "#;
+
+pub const MIGRATION_8: &str = r#"
+ALTER TABLE ai_providers ADD COLUMN context_window INTEGER NOT NULL DEFAULT 8192;
+"#;
+
+pub const MIGRATION_9: &str = r#"
+CREATE TABLE engagement_files (
+    id TEXT PRIMARY KEY,
+    engagement_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    plaintext_hash TEXT NOT NULL,
+    nonce TEXT NOT NULL,
+    path TEXT NOT NULL,
+    summary_json TEXT NOT NULL DEFAULT '{}',
+    extracted_text TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_engagement_files_engagement
+    ON engagement_files(engagement_id, created_at);
+
+CREATE TABLE ai_tool_permissions (
+    engagement_id TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (engagement_id, tool),
+    FOREIGN KEY (engagement_id) REFERENCES engagements(id) ON DELETE CASCADE
+);
+"#;

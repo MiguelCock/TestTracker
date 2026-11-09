@@ -12,9 +12,11 @@ import type {
   AgentPreview,
   AgentProposal,
   AssistantPreview,
-  AssistantReply,
   AssistantTurn,
   AssistantFocus,
+  AssistantStep,
+  EngagementFile,
+  ToolPermission,
   AgentSkill,
   Approval,
   BundleExportResult,
@@ -175,11 +177,36 @@ export const api = {
     message: string,
     history: AssistantTurn[],
     focus: AssistantFocus,
+    fileIds: string[],
   ) =>
     ipc<AssistantPreview>("preview_assistant_chat", {
-      input: { engagementId, providerId, message, history, focus },
+      input: { engagementId, providerId, message, history, focus, fileIds },
     }),
-  runAssistantChat: (consentId: string) => ipc<AssistantReply>("run_assistant_chat", { consentId }),
+  runAssistantChat: (consentId: string) => ipc<AssistantStep>("run_assistant_chat", { consentId }),
+  resolveAssistantTool: (
+    runId: string,
+    callId: string,
+    decision: "allow_once" | "always" | "deny",
+  ) => ipc<AssistantStep>("resolve_assistant_tool", { runId, callId, decision }),
+  listEngagementFiles: (engagementId: string) =>
+    ipc<EngagementFile[]>("list_engagement_files", { engagementId }),
+  addEngagementFile: (
+    engagementId: string,
+    filename: string,
+    mimeType: string,
+    dataBase64: string,
+  ) =>
+    ipc<EngagementFile>("add_engagement_file", {
+      engagementId,
+      filename,
+      mimeType,
+      dataBase64,
+    }),
+  deleteEngagementFile: (id: string) => ipc<DeleteResult>("delete_engagement_file", { id }),
+  listToolPermissions: (engagementId: string) =>
+    ipc<ToolPermission[]>("list_tool_permissions", { engagementId }),
+  revokeToolPermission: (engagementId: string, tool: string) =>
+    ipc<ToolPermission[]>("revoke_tool_permission", { engagementId, tool }),
 
   listPluginPublishers: () => ipc<PluginPublisher[]>("list_plugin_publishers"),
   addPluginPublisher: (input: AddPluginPublisherInput) =>

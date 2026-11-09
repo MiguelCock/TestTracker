@@ -31,7 +31,7 @@ engagements** in the unlocked vault.
 Client configuration formats vary. The required values are the Streamable HTTP endpoint and the
 `Authorization: Bearer ...` header on every request.
 
-The default endpoint is `http://127.0.0.1:37621/mcp`. The server binds only to IPv4 loopback. The
+The default endpoint is `http://127.0.0.1:37621/mcp`. For OpenCode, see `docs/opencode.md`. The server binds only to IPv4 loopback. The
 port is stored in the encrypted database; the token is encrypted with the vault master key and is
 only returned to the UI on explicit reveal.
 

@@ -17,6 +17,8 @@ Migrations are versioned with `PRAGMA user_version`. Foreign keys are enabled.
 | `test_case_templates`        | Reusable, domain-specific test cases (web, API, mobile, etc.)          |
 | `test_template_bundles`      | Curated or imported template packs                                     |
 | `test_template_bundle_items` | Templates and stable source IDs in each bundle                         |
+| `engagement_files`           | Encrypted AI review files and deterministic summaries                  |
+| `ai_tool_permissions`        | Per-engagement read-only tool allowlist                                |
 | `test_cases`                 | Engagement test execution records                                      |
 | `findings`                   | Structured findings with severity, OWASP/CWE, remediation, retest      |
 | `finding_test_cases`         | Many-to-many links between findings and tests                          |
