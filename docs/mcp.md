@@ -106,6 +106,10 @@ Read-only tools:
 | `get_dashboard_metrics`  | Aggregate dashboard metrics                           |
 | `get_engagement_context` | Sanitized context for drafting                        |
 
+`list_engagements` returns `{ "engagements": [...], "count": N }`. The other list tools return
+`{ "testCases": [...], ... }` and `{ "findings": [...], ... }` so that `structuredContent` is always
+an object.
+
 Draft-only tools:
 
 | Tool                          | Proposal                          |

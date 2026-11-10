@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::ai::agent::{AgentSkill, build_context, validate_proposal_payload};
 use crate::db;
-use crate::domain::models::EngagementDetail;
+use crate::domain::models::{EngagementDetail, EngagementSummary};
 use crate::domain::rbac;
 use crate::error::{AppError, AppResult};
 use crate::mcp::model::{McpApprovalRecord, McpApprovalState, McpProposalAccepted};
@@ -149,7 +149,7 @@ impl McpTools {
         let result = run_blocking(app, |state| {
             state.with_session_no_touch(|session| {
                 let engagements = db::engagements::list(&session.conn)?;
-                serde_json::to_value(engagements).map_err(AppError::from)
+                Ok(engagements_value(engagements))
             })
         })
         .await?;
@@ -843,6 +843,14 @@ fn accepted(record: &McpApprovalRecord) -> McpProposalAccepted {
     }
 }
 
+fn engagements_value(engagements: Vec<EngagementSummary>) -> Value {
+    let count = engagements.len();
+    json!({
+        "engagements": engagements,
+        "count": count,
+    })
+}
+
 fn engagement_value(detail: &EngagementDetail) -> Value {
     json!({
         "engagement": detail.engagement,
@@ -880,6 +888,26 @@ mod tests {
     use crate::security::{crypto, identity};
     use crate::state::UnlockedSession;
     use zeroize::Zeroizing;
+
+    #[test]
+    fn engagements_payload_is_an_object_with_count() {
+        let payload = engagements_value(vec![EngagementSummary {
+            id: "engagement-1".into(),
+            name: "Synthetic API assessment".into(),
+            client_code: String::new(),
+            status: EngagementStatus::Active,
+            start_date: "2026-11-09".into(),
+            end_date: "2026-11-11".into(),
+            updated_at: "2026-11-10T00:00:00Z".into(),
+            test_case_count: 14,
+            finding_count: 2,
+            open_finding_count: 1,
+        }]);
+        assert!(payload.is_object());
+        assert_eq!(payload["count"], 1);
+        assert_eq!(payload["engagements"][0]["id"], "engagement-1");
+        assert_eq!(payload["engagements"][0]["testCaseCount"], 14);
+    }
 
     #[test]
     fn mcpproposal_does_not_write_until_applied() {
