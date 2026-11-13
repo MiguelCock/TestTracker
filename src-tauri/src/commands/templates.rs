@@ -100,6 +100,14 @@ pub async fn create_test_cases_from_bundle(
                 continue;
             }
             let template = db::test_cases::get_template(&tx, &template_id)?;
+            let notes = if template.expected_result.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "Expected result: {}\nReferences: {}",
+                    template.expected_result, template.references
+                )
+            };
             let input = TestCaseInput {
                 engagement_id: engagement_id.clone(),
                 template_id: Some(template.id),
@@ -108,7 +116,7 @@ pub async fn create_test_cases_from_bundle(
                 category: template.category,
                 status: TestCaseStatus::NotStarted,
                 result: String::new(),
-                notes: String::new(),
+                notes,
                 assignee: assignee.clone(),
                 sort_order: base_order + created.len() as i64,
             };

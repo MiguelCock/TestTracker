@@ -24,21 +24,23 @@ References in each template point to a framework or weakness class, not to clien
 Built-in bundles cover:
 
 - web core and web deep dive
-- API core and GraphQL/gRPC/WebSocket
+- API core, API deep dive, and GraphQL/gRPC/WebSocket
+- OWASP API Security Top 10 2023
 - mobile baseline
 - cloud baseline
 - Kubernetes and containers
 - Windows and Active Directory
 - Linux and macOS
 - network exposure
-- SAP baseline
+- SAP platform baseline, SAP workflow/business process, and SAP BTP/CPI integration
+- full SAP application assessment
 - AI/LLM security
 - BI and Power BI
 - thick client
 - secure code review
 - full application assessment
 
-Add a bundle from **Test tracker → From templates**. Existing tests are deduplicated by template ID.
+Add a bundle from **Test tracker → From templates**. Existing tests are deduplicated by template ID. Adding a bundle copies the template title, approach, category, and a notes block containing the expected result and references, so the success criteria remain visible in the engagement.
 
 ## Import and export
 

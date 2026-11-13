@@ -32,13 +32,13 @@ fn local_flow_persists_and_verifies() {
             row.get(0)
         })
         .expect("templates");
-    assert_eq!(template_count, 81);
+    assert_eq!(template_count, 111);
     let bundle_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM test_template_bundles", [], |row| {
             row.get(0)
         })
         .expect("bundles");
-    assert_eq!(bundle_count, 16);
+    assert_eq!(bundle_count, 21);
     let orphan_items: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM test_template_bundle_items i
