@@ -199,6 +199,7 @@ pub struct AssistantRunRecord {
     pub tool_results: Vec<Value>,
     pub rounds: usize,
     pub calls: usize,
+    pub repairs: usize,
     pub pending: Option<PendingToolCall>,
     pub expires_at: Instant,
 }
@@ -496,15 +497,9 @@ pub fn build_assistant_prompt(
 }
 
 pub fn parse_assistant_step(content: &str) -> AppResult<ParsedAssistantStep> {
-    let cleaned = strip_json_fence(content);
-    let start = cleaned
-        .find('{')
-        .ok_or_else(|| AppError::External("The assistant did not return a JSON object.".into()))?;
-    let end = cleaned
-        .rfind('}')
-        .ok_or_else(|| AppError::External("The assistant did not return a JSON object.".into()))?;
-    let value: Value = serde_json::from_str(&cleaned[start..=end])
-        .map_err(|_| AppError::External("The assistant returned invalid JSON.".into()))?;
+    let value = super::json::parse_json_object(content).ok_or_else(|| {
+        AppError::External("The assistant did not return a valid JSON object.".into())
+    })?;
     if let Some(tool) = value.get("tool").and_then(Value::as_str) {
         let arguments = value.get("arguments").cloned().unwrap_or_else(|| json!({}));
         if !arguments.is_object() {
@@ -528,7 +523,7 @@ pub fn parse_assistant_step(content: &str) -> AppResult<ParsedAssistantStep> {
         .map(str::trim)
         .filter(|message| !message.is_empty() && message.chars().count() <= MAX_MESSAGE_CHARS)
         .ok_or_else(|| AppError::External("The assistant returned an invalid message.".into()))?;
-    match parse_assistant_reply(&cleaned) {
+    match parse_assistant_reply(content) {
         Ok(parsed) => Ok(ParsedAssistantStep::Final(parsed)),
         Err(_) => Ok(ParsedAssistantStep::Final(ParsedAssistantReply {
             message: message.to_string(),
@@ -585,15 +580,9 @@ pub fn assistant_system_prompt() -> &'static str {
 }
 
 pub fn parse_assistant_reply(content: &str) -> AppResult<ParsedAssistantReply> {
-    let cleaned = strip_json_fence(content);
-    let start = cleaned
-        .find('{')
-        .ok_or_else(|| AppError::External("The assistant did not return a JSON object.".into()))?;
-    let end = cleaned
-        .rfind('}')
-        .ok_or_else(|| AppError::External("The assistant did not return a JSON object.".into()))?;
-    let value: Value = serde_json::from_str(&cleaned[start..=end])
-        .map_err(|_| AppError::External("The assistant returned invalid JSON.".into()))?;
+    let value = super::json::parse_json_object(content).ok_or_else(|| {
+        AppError::External("The assistant did not return a valid JSON object.".into())
+    })?;
     let message = value
         .get("message")
         .and_then(Value::as_str)
@@ -707,19 +696,6 @@ fn truncate(value: &str, max: usize) -> String {
     value.chars().take(max).collect()
 }
 
-fn strip_json_fence(content: &str) -> String {
-    let trimmed = content.trim();
-    let without_prefix = trimmed
-        .strip_prefix("```json")
-        .or_else(|| trimmed.strip_prefix("```"))
-        .unwrap_or(trimmed);
-    without_prefix
-        .strip_suffix("```")
-        .unwrap_or(without_prefix)
-        .trim()
-        .to_string()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -730,6 +706,27 @@ mod tests {
             .expect("reply");
         assert_eq!(reply.message, "No action needed.");
         assert!(reply.action.is_none());
+    }
+
+    #[test]
+    fn parses_step_from_surrounding_prose() {
+        let step = parse_assistant_step(
+            "Next action: list_tests\n{\"tool\":\"list_tests\",\"arguments\":{}}\nDone.",
+        )
+        .expect("step");
+        match step {
+            ParsedAssistantStep::Tool { tool, .. } => assert_eq!(tool, "list_tests"),
+            ParsedAssistantStep::Final(_) => panic!("expected tool"),
+        }
+    }
+
+    #[test]
+    fn repair_prompt_sanitizes_fences() {
+        let prompt = crate::ai::agent::build_repair_prompt("base", "```json\n{\"broken\":\n```");
+        assert!(prompt.starts_with("base"));
+        assert!(prompt.contains("'''json"));
+        assert_eq!(prompt.matches("```").count(), 2);
+        assert!(prompt.contains("Previous reply"));
     }
 
     #[test]

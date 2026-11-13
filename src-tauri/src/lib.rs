@@ -91,6 +91,7 @@ pub fn run() {
             commands::ai::set_ai_policy,
             commands::ai::preview_ai_prompt,
             commands::ai::send_ai_message,
+            commands::ai::test_ai_provider,
             commands::agent::preview_agent_skill,
             commands::agent::run_agent_skill,
             commands::agent::apply_agent_proposal,

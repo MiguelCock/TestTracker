@@ -25,9 +25,12 @@ Previews expire after 5 minutes and proposals after 15 minutes. Both are cleared
 | `test_cases`          | `{"testCases":[{title,category,approach,expectedResult}]}` | Creates new tests at the end of the tracker |
 | `test_approach`       | `{"approach":"..."}`                                       | Replaces the target test's approach         |
 | `finding_draft`       | Structured finding fields                                  | Creates a finding linked to the target test |
+| `finding_improve`     | Structured finding text                                    | Updates the target finding                  |
 
 Finding drafts include probability and impact (0-9); severity is recomputed server-side with the
-approved matrix. Test cases are created as `not_started` and assigned to the current profile.
+approved matrix. Finding improvements never ask the model for probability, impact, or severity: the
+server carries the target finding's values over so a weak model cannot silently downgrade severity.
+Test cases are created as `not_started` and assigned to the current profile.
 
 ## Context
 
@@ -147,6 +150,16 @@ proposal Apply step.
 
 ## Ollama notes
 
-Assistant and structured agent calls use Ollama JSON mode and a provider context-window budget. If a
-local model still returns a malformed envelope, the assistant returns its message without applying
-an action; use a larger/stronger model for reliable structured proposals.
+Assistant and structured agent calls send the response schema to Ollama through `format` and set
+`num_ctx` from the provider's context window, so local models are grammar-constrained instead of
+only being told to return JSON. Replies are parsed by walking balanced braces, which tolerates
+fences and surrounding prose.
+
+If a reply still cannot be parsed, the server makes one repair attempt: it re-prompts the model with
+its own invalid reply and the required shape. If that fails, the assistant returns a soft message
+without applying an action, and an agent skill run reports an error. Use a larger model (for example
+`qwen2.5:7b-instruct` or `llama3.1:8b`) for reliable structured proposals.
+
+**Test provider** under Settings → AI providers sends a fixed, data-free probe to a local provider and
+reports latency plus whether the reply was structured JSON. Cloud providers are tested through the
+normal engagement preview and consent flow.

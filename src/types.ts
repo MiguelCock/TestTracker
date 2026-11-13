@@ -357,6 +357,15 @@ export interface AiProviderSummary {
   createdAt: string;
 }
 
+export interface AiProviderTestResult {
+  ok: boolean;
+  providerName: string;
+  model: string;
+  latencyMs: number;
+  structured: boolean;
+  preview: string;
+}
+
 export interface AiProviderInput {
   name: string;
   kind: AiProviderKind;

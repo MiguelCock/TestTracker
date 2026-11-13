@@ -16,6 +16,7 @@ use crate::ai::image_prep::prepare_image;
 use crate::ai::model::AiPolicy;
 use crate::ai::providers::{self, ProviderImage};
 use crate::ai::redaction;
+use crate::commands::agent::inherit_finding_scores;
 use crate::commands::evidence::read_evidence_content;
 use crate::db;
 use crate::domain::rbac;
@@ -253,6 +254,7 @@ pub async fn run_assistant_chat(
         tool_results: Vec::new(),
         rounds: 0,
         calls: 0,
+        repairs: 0,
         pending: None,
         expires_at: Instant::now() + Duration::from_secs(15 * 60),
     };
@@ -358,6 +360,26 @@ fn check_preview_provider(state: &AppState, preview: &AssistantPreviewRecord) ->
     })
 }
 
+fn provider_request<'a>(
+    run: &'a AssistantRunRecord,
+    prompt: &'a str,
+    schema: &'a Value,
+    image: Option<&'a ProviderImage<'a>>,
+) -> providers::ProviderRequest<'a> {
+    providers::ProviderRequest {
+        kind: run.kind,
+        base_url: &run.base_url,
+        model: &run.model,
+        api_key: run.api_key.as_str(),
+        system_prompt: &run.system_prompt,
+        prompt,
+        image,
+        json_mode: true,
+        json_schema: Some(schema),
+        context_window: Some(run.context_window),
+    }
+}
+
 async fn advance_assistant_run(
     state: &AppState,
     mut run: AssistantRunRecord,
@@ -367,29 +389,35 @@ async fn advance_assistant_run(
             message: "The assistant reached its tool or provider limit.".into(),
         });
     }
-    let prompt = build_run_prompt(&run.base_prompt, &run.tool_results);
+    let mut prompt = build_run_prompt(&run.base_prompt, &run.tool_results);
     let schema = crate::ai::assistant::assistant_response_schema();
     let image = run.attachment.as_ref().map(|image| ProviderImage {
         mime_type: &image.mime_type,
         data_base64: image.data_base64.as_str(),
     });
-    let reply = providers::send(&providers::ProviderRequest {
-        kind: run.kind,
-        base_url: &run.base_url,
-        model: &run.model,
-        api_key: run.api_key.as_str(),
-        system_prompt: &run.system_prompt,
-        prompt: &prompt,
-        image: image.as_ref(),
-        json_mode: true,
-        json_schema: Some(&schema),
-        context_window: Some(run.context_window),
-    })
-    .await?;
+    let mut reply =
+        providers::send(&provider_request(&run, &prompt, &schema, image.as_ref())).await?;
     run.rounds += 1;
+    let mut parsed = parse_assistant_step(&reply.content);
+    if parsed.is_err() && run.repairs == 0 {
+        run.repairs += 1;
+        prompt = crate::ai::agent::build_repair_prompt(&prompt, &reply.content);
+        reply = providers::send(&provider_request(&run, &prompt, &schema, image.as_ref())).await?;
+        run.rounds += 1;
+        parsed = parse_assistant_step(&reply.content);
+    }
+    let parsed = match parsed {
+        Ok(parsed) => parsed,
+        Err(_) => {
+            return Ok(AssistantStepDto::Cancelled {
+                message:
+                    "The model did not return a usable JSON response after one repair attempt. Try the provider diagnostic or a stronger model."
+                        .into(),
+            });
+        }
+    };
     let prompt_hash = blake3::hash(prompt.as_bytes()).to_hex().to_string();
     let response_hash = blake3::hash(reply.content.as_bytes()).to_hex().to_string();
-    let parsed = parse_assistant_step(&reply.content)?;
     match parsed {
         ParsedAssistantStep::Tool { tool, arguments } => {
             if !crate::ai::tools::is_known_tool(&tool) {
@@ -433,13 +461,23 @@ async fn advance_assistant_run(
                         action.skill,
                         action.target_id.as_deref(),
                     )?;
+                    let payload = if action.skill == AgentSkill::FindingImprove {
+                        inherit_finding_scores(
+                            &session.conn,
+                            &run.engagement_id,
+                            action.target_id.as_deref(),
+                            action.payload.clone(),
+                        )?
+                    } else {
+                        action.payload.clone()
+                    };
                     let now = db::now();
                     let proposal = AgentProposalRecord {
                         id: Uuid::now_v7().to_string(),
                         engagement_id: run.engagement_id.clone(),
                         skill: action.skill,
                         target_id: action.target_id.clone(),
-                        payload: action.payload.clone(),
+                        payload: payload.clone(),
                         expires_at: Instant::now() + Duration::from_secs(PROPOSAL_TTL_SECONDS),
                     };
                     let tx = session.conn.transaction()?;

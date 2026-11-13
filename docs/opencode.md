@@ -12,17 +12,24 @@ unlocked.
 
 ## 2. Configure OpenCode
 
-The global configuration is `~/.config/opencode/opencode.json`. Add `testtracker` beside any
-existing MCP entries:
+The global configuration is `~/.config/opencode/opencode.json` (`%USERPROFILE%\.config\opencode\opencode.json`
+on Windows). OpenCode V2 keeps server names under `mcp.servers`, not directly under `mcp`. Merge
+`testtracker` into any existing entries:
 
 ```json
-"testtracker": {
-  "type": "remote",
-  "url": "http://127.0.0.1:37621/mcp",
-  "enabled": true,
-  "oauth": false,
-  "headers": {
-    "Authorization": "Bearer {env:TESTTRACKER_MCP_TOKEN}"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "testtracker": {
+        "type": "remote",
+        "url": "http://127.0.0.1:37621/mcp",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:TESTTRACKER_MCP_TOKEN}"
+        }
+      }
+    }
   }
 }
 ```
@@ -34,6 +41,9 @@ that starts OpenCode:
 export TESTTRACKER_MCP_TOKEN="<token>"
 opencode
 ```
+
+Config edits apply without restarting, but the token is read from the environment when OpenCode
+starts, so relaunch it from a shell with the current value.
 
 ## 3. Verify
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Cloud, HardDrive, KeyRound, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Bot, Cloud, FlaskConical, HardDrive, KeyRound, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -43,7 +43,29 @@ export function AiProvidersCard() {
   const [providerOpen, setProviderOpen] = useState(false);
   const [editing, setEditing] = useState<AiProviderSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tested, setTested] = useState<{
+    id: string;
+    ok: boolean;
+    message: string;
+    preview: string;
+  } | null>(null);
   const providers = useQuery({ queryKey: ["ai-providers"], queryFn: api.listAiProviders });
+  const test = useMutation({
+    mutationFn: (id: string) => api.testAiProvider(id),
+    onSuccess: (result, id) => {
+      setTested({
+        id,
+        ok: result.ok && result.structured,
+        message: `${result.latencyMs} ms · ${
+          result.structured ? "structured JSON" : "reply was not JSON"
+        }${result.ok ? "" : " · probe returned ok=false"}`,
+        preview: result.preview,
+      });
+    },
+    onError: (mutationError, id) => {
+      setTested({ id, ok: false, message: mutationError.message, preview: "" });
+    },
+  });
   const remove = useMutation({
     mutationFn: (id: string) => api.deleteAiProvider(id),
     onSuccess: () => {
@@ -133,10 +155,30 @@ export function AiProvidersCard() {
                     <p className="mt-0.5 text-[11px] text-slate-500">
                       {kindLabel[provider.kind]} · {provider.model} · {provider.baseUrl}
                     </p>
+                    {tested?.id === provider.id && (
+                      <p
+                        className={`mt-1 text-[11px] ${
+                          tested.ok ? "text-emerald-300" : "text-red-400"
+                        }`}
+                        title={tested.preview}
+                      >
+                        {tested.message}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {canManage && (
                   <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Test AI provider"
+                      title="Send a fixed structured-output probe"
+                      disabled={test.isPending}
+                      onClick={() => test.mutate(provider.id)}
+                    >
+                      <FlaskConical className="h-3.5 w-3.5" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

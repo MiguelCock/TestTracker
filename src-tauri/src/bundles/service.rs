@@ -475,11 +475,11 @@ fn validate_under(root: &Path, stored: &str) -> AppResult<PathBuf> {
     Ok(path)
 }
 
-fn set_dir_private(path: &Path) -> AppResult<()> {
+fn set_dir_private(_path: &Path) -> AppResult<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
+        fs::set_permissions(_path, fs::Permissions::from_mode(0o700))?;
     }
     Ok(())
 }

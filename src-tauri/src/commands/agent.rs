@@ -4,9 +4,11 @@ use tauri::State;
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
+use serde_json::Value;
+
 use crate::ai::agent::{
     AgentApplyResult, AgentPreviewDto, AgentPreviewRecord, AgentProposalDto, AgentProposalRecord,
-    AgentSkill, build_context, build_prompt, parse_proposal,
+    AgentSkill, build_context, build_prompt, build_repair_prompt, parse_proposal,
 };
 use crate::ai::model::AiPolicy;
 use crate::ai::{providers, redaction};
@@ -85,6 +87,7 @@ pub async fn preview_agent_skill(
             base_url: provider.base_url.clone(),
             model: provider.model.clone(),
             api_key,
+            context_window: provider.context_window,
             skill,
             target_id: target_id.clone(),
             system_prompt: skill.system_prompt().to_string(),
@@ -160,7 +163,8 @@ pub async fn run_agent_skill(
         audit_agent_failure(&state, &preview, &error);
         return Err(error);
     }
-    let reply = match providers::send(&providers::ProviderRequest {
+    let schema = preview.skill.response_schema();
+    let request = providers::ProviderRequest {
         kind: preview.kind,
         base_url: &preview.base_url,
         model: &preview.model,
@@ -169,18 +173,35 @@ pub async fn run_agent_skill(
         prompt: &preview.prompt,
         image: None,
         json_mode: true,
-        json_schema: None,
-        context_window: None,
-    })
-    .await
-    {
+        json_schema: Some(&schema),
+        context_window: Some(preview.context_window),
+    };
+    let mut reply = match providers::send(&request).await {
         Ok(reply) => reply,
         Err(error) => {
             audit_agent_failure(&state, &preview, &error);
             return Err(error);
         }
     };
-    let payload = match parse_proposal(preview.skill, &reply.content) {
+    let mut repairs = 0usize;
+    let mut parsed = parse_proposal(preview.skill, &reply.content);
+    if parsed.is_err() {
+        repairs += 1;
+        let repair_prompt = build_repair_prompt(&preview.prompt, &reply.content);
+        let repair_request = providers::ProviderRequest {
+            prompt: &repair_prompt,
+            ..request
+        };
+        reply = match providers::send(&repair_request).await {
+            Ok(reply) => reply,
+            Err(error) => {
+                audit_agent_failure(&state, &preview, &error);
+                return Err(error);
+            }
+        };
+        parsed = parse_proposal(preview.skill, &reply.content);
+    }
+    let payload = match parsed {
         Ok(payload) => payload,
         Err(error) => {
             audit_agent_failure(&state, &preview, &error);
@@ -188,15 +209,25 @@ pub async fn run_agent_skill(
         }
     };
     let response_hash = blake3::hash(reply.content.as_bytes()).to_hex().to_string();
-    let proposal = AgentProposalRecord {
-        id: Uuid::now_v7().to_string(),
-        engagement_id: preview.engagement_id.clone(),
-        skill: preview.skill,
-        target_id: preview.target_id.clone(),
-        payload: payload.clone(),
-        expires_at: Instant::now() + Duration::from_secs(PROPOSAL_TTL_SECONDS),
-    };
-    state.with_session(|session| {
+    let (proposal, payload) = state.with_session(|session| {
+        let payload = if preview.skill == AgentSkill::FindingImprove {
+            inherit_finding_scores(
+                &session.conn,
+                &preview.engagement_id,
+                preview.target_id.as_deref(),
+                payload,
+            )?
+        } else {
+            payload
+        };
+        let proposal = AgentProposalRecord {
+            id: Uuid::now_v7().to_string(),
+            engagement_id: preview.engagement_id.clone(),
+            skill: preview.skill,
+            target_id: preview.target_id.clone(),
+            payload: payload.clone(),
+            expires_at: Instant::now() + Duration::from_secs(PROPOSAL_TTL_SECONDS),
+        };
         let now = db::now();
         let tx = session.conn.transaction()?;
         audit::append(
@@ -214,12 +245,13 @@ pub async fn run_agent_skill(
                     "responseHash": response_hash,
                     "promptTokens": reply.prompt_tokens,
                     "completionTokens": reply.completion_tokens,
+                    "repairs": repairs,
                 }),
                 created_at: &now,
             },
         )?;
         tx.commit()?;
-        Ok(())
+        Ok((proposal, payload))
     })?;
     let dto = AgentProposalDto {
         proposal_id: proposal.id.clone(),
@@ -230,6 +262,34 @@ pub async fn run_agent_skill(
     };
     state.insert_agent_proposal(proposal);
     Ok(dto)
+}
+
+/// Carries the target finding's probability and impact into a finding-improvement
+/// proposal so a weak model cannot silently reset the severity.
+pub(crate) fn inherit_finding_scores(
+    conn: &rusqlite::Connection,
+    engagement_id: &str,
+    target_id: Option<&str>,
+    payload: Value,
+) -> AppResult<Value> {
+    let target_id = target_id
+        .ok_or_else(|| AppError::Validation("The action is missing its target.".into()))?;
+    let finding = db::findings::get(conn, target_id)?;
+    if finding.engagement_id != engagement_id {
+        return Err(AppError::Validation(
+            "The target finding does not belong to this engagement.".into(),
+        ));
+    }
+    let mut payload = payload;
+    let object = payload.as_object_mut().ok_or_else(|| {
+        AppError::External("The agent returned an invalid finding payload.".into())
+    })?;
+    object.insert("probability".into(), serde_json::json!(finding.probability));
+    object.insert(
+        "impactScore".into(),
+        serde_json::json!(finding.impact_score),
+    );
+    Ok(payload)
 }
 
 #[tauri::command]
@@ -381,8 +441,8 @@ pub(crate) fn apply_proposal(
                     "The target finding does not belong to this engagement.".into(),
                 ));
             }
-            let probability = payload_u8(&proposal.payload, "probability")?;
-            let impact_score = payload_u8(&proposal.payload, "impactScore")?;
+            let probability = finding.probability;
+            let impact_score = finding.impact_score;
             let severity = severity_for(probability, impact_score)?;
             let input = FindingInput {
                 engagement_id: proposal.engagement_id.clone(),

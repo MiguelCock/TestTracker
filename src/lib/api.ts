@@ -6,6 +6,7 @@ import type {
   AiProviderInput,
   AiProviderKind,
   AiProviderSummary,
+  AiProviderTestResult,
   AiResponse,
   AddPluginPublisherInput,
   AgentApplyResult,
@@ -136,6 +137,7 @@ export const api = {
   updateAiProvider: (id: string, input: AiProviderInput) =>
     ipc<AiProviderSummary>("update_ai_provider", { id, input }),
   deleteAiProvider: (id: string) => ipc<DeleteResult>("delete_ai_provider", { id }),
+  testAiProvider: (id: string) => ipc<AiProviderTestResult>("test_ai_provider", { id }),
   listAiModels: (
     kind: AiProviderKind,
     baseUrl: string,

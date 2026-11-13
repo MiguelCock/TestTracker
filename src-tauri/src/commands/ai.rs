@@ -220,6 +220,112 @@ pub async fn delete_ai_provider(state: State<'_, AppState>, id: String) -> AppRe
     })
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiProviderTestResult {
+    pub ok: bool,
+    pub provider_name: String,
+    pub model: String,
+    pub latency_ms: u64,
+    pub structured: bool,
+    pub preview: String,
+}
+
+/// Runs a fixed, data-free structured-output probe against a local provider.
+///
+/// Diagnostics never send engagement data, so they require no engagement
+/// consent; cloud providers stay behind the per-engagement preview flow.
+#[tauri::command]
+pub async fn test_ai_provider(
+    state: State<'_, AppState>,
+    id: String,
+) -> AppResult<AiProviderTestResult> {
+    let (provider, api_key) = state.with_session(|session| {
+        if !rbac::can_manage(session.profile.role) {
+            return Err(AppError::PermissionDenied);
+        }
+        let provider = db::ai::get(&session.conn, &id)?;
+        if !providers::is_local(provider.kind, &provider.base_url) {
+            return Err(AppError::Validation(
+                "Provider diagnostics only run against local endpoints. Test a cloud provider through an engagement preview.".into(),
+            ));
+        }
+        let api_key = if provider.encrypted_api_key.is_empty() {
+            Zeroizing::new(String::new())
+        } else {
+            let bytes = crypto::decrypt_secret(
+                &session.master_key,
+                provider_aad(&provider.id).as_bytes(),
+                &provider.encrypted_api_key,
+            )?;
+            Zeroizing::new(String::from_utf8(bytes.to_vec()).map_err(|_| AppError::Crypto)?)
+        };
+        Ok((provider, api_key))
+    })?;
+    let schema = serde_json::json!({
+        "type": "object",
+        "properties": {
+            "ok": { "type": "boolean" },
+            "model": { "type": "string" }
+        },
+        "required": ["ok"]
+    });
+    let started = Instant::now();
+    let reply = providers::send(&providers::ProviderRequest {
+        kind: provider.kind,
+        base_url: &provider.base_url,
+        model: &provider.model,
+        api_key: api_key.as_str(),
+        system_prompt:
+            "You are a connectivity probe. Return exactly one JSON object and nothing else.",
+        prompt: "Diagnostic probe. Return exactly {\"ok\":true} as one JSON object.",
+        image: None,
+        json_mode: true,
+        json_schema: Some(&schema),
+        context_window: Some(provider.context_window),
+    })
+    .await?;
+    let latency_ms = started.elapsed().as_millis() as u64;
+    let parsed = crate::ai::json::parse_json_object(&reply.content);
+    let ok = parsed
+        .as_ref()
+        .and_then(|value| value.get("ok"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let preview: String = reply.content.chars().take(400).collect();
+    let now = db::now();
+    let _ = state.with_session(|session| {
+        let tx = session.conn.transaction()?;
+        audit::append(
+            &tx,
+            audit::AuditEntry {
+                engagement_id: None,
+                actor_id: Some(&session.profile.id),
+                action: "ai_provider.tested",
+                entity_type: "ai_provider",
+                entity_id: Some(&provider.id),
+                metadata: serde_json::json!({
+                    "model": &provider.model,
+                    "ok": ok,
+                    "latencyMs": latency_ms,
+                    "structured": parsed.is_some(),
+                }),
+                created_at: &now,
+            },
+        )?;
+        tx.commit()?;
+        Ok(())
+    });
+    Ok(AiProviderTestResult {
+        ok,
+        provider_name: provider.name,
+        model: provider.model,
+        latency_ms,
+        structured: parsed.is_some(),
+        preview,
+    })
+}
+
 #[tauri::command]
 pub async fn get_ai_policy(
     state: State<'_, AppState>,

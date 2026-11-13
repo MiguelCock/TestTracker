@@ -38,6 +38,8 @@ cargo run --manifest-path src-tauri/Cargo.toml --bin ttplugin -- sign examples/p
 
 First Rust build is slow: `rusqlite` compiles bundled SQLCipher + vendored OpenSSL. Linux needs `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`, `libxdo-dev`, `libssl-dev`, `patchelf`, `build-essential`, `pkg-config`.
 
+Windows: the vendored OpenSSL build requires Perl. Git for Windows ships one at `C:\Program Files\Git\usr\bin\perl.exe`; add that directory to `PATH` before `cargo check`/`cargo test`/`tauri dev` when `perl` is not already available.
+
 ## Architecture rules
 
 - All secrets and trust decisions live in Rust. The React webview never receives the master key, DB key, provider credentials, or signing private key.
