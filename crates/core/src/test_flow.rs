@@ -32,13 +32,13 @@ fn local_flow_persists_and_verifies() {
             row.get(0)
         })
         .expect("templates");
-    assert_eq!(template_count, 81);
+    assert_eq!(template_count, 111);
     let bundle_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM test_template_bundles", [], |row| {
             row.get(0)
         })
         .expect("bundles");
-    assert_eq!(bundle_count, 16);
+    assert_eq!(bundle_count, 21);
     let orphan_items: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM test_template_bundle_items i
@@ -171,8 +171,8 @@ fn local_flow_persists_and_verifies() {
             "description": "A regular user can export another tenant's data.",
             "impact": "Cross-tenant data exposure.",
             "remediation": "Enforce object-level authorization and add regression tests.",
-            "probability": 8,
-            "impactScore": 8,
+            "probability": 0,
+            "impactScore": 0,
             "owasp": "A1",
             "cwe": "CWE-639"
         }),
@@ -186,6 +186,9 @@ fn local_flow_persists_and_verifies() {
     assert_eq!(improved.retest_status, RetestStatus::Pending);
     assert_eq!(improved.test_case_ids, vec![test_case.id.clone()]);
     assert!(improved.remediation.contains("regression tests"));
+    assert_eq!(improved.probability, 8);
+    assert_eq!(improved.impact_score, 8);
+    assert_eq!(improved.severity, Severity::Critical);
 
     let detail = db::engagements::detail(&conn, "engagement-1").expect("detail");
     assert_eq!(detail.test_case_count, 1);

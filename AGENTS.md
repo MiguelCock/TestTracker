@@ -42,6 +42,8 @@ First Rust build is slow: bundled SQLCipher + vendored OpenSSL, Typst, and GPUI.
 libva-dev libvulkan1 libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev
 libxcb1-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libzstd-dev`, plus a Vulkan driver and Wayland/X11.
 
+Windows: the vendored OpenSSL build requires Perl. Git for Windows ships one at `C:\Program Files\Git\usr\bin\perl.exe`; add that directory to `PATH` before `cargo check`/`cargo test`/`tauri dev` when `perl` is not already available.
+
 ## Architecture rules
 
 - Workspace layout: `crates/core` is GUI-free; `crates/app` is the GPUI binary. Only `core` touches
