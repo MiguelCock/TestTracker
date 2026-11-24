@@ -2,89 +2,153 @@
 
 ## Repo purpose
 
-Build **TestTracker**, an internal application that standardizes how penetration-testing engagements are planned, executed, tracked, reviewed, and reported. It replaces manual spreadsheets with engagements, scope/attack surface, reusable test cases, structured findings, evidence, approvals, audit history, versioning, and PDF/DOCX/XLSX exports.
+Build **TestTracker**, an internal application that standardizes how penetration-testing engagements
+are planned, executed, tracked, reviewed, and reported. It replaces manual spreadsheets with
+engagements, scope, reusable test cases, structured findings, encrypted files, audit history,
+versioning, and PDF/DOCX/XLSX exports.
 
 ## Current state
 
-Tauri 2 + React 19 + TypeScript desktop app, local-first and encrypted. Implemented: vault/key management, profiles, engagements, scope/risks/assumptions/contacts, test-case tracker with a large template library and importable bundles, structured findings, severity matrix, encrypted evidence store, immutable snapshots, Ed25519 sign-offs with hash verification, audit hash chain, auto-lock, styled document generation, AI providers/chat/engagement assistant with image analysis, encrypted reference-file review with read-only tools and per-call permissions, signed plugins, encrypted bundles, assessment import (XLSX/XLSM, DOCX, PDF, text), local MCP server bridge, and strict CSP. Planned: MCP client/tool calling, encrypted multi-profile separation.
+Native Rust desktop app built with **GPUI** and **gpui-kit**. No Tauri, no React, no webview, no
+JavaScript UI runtime. Implemented: vault/key management, profiles, engagements with scope and
+application summary, unified Tests & Findings, custom test templates and curated bundles, encrypted
+virtual Files workspace, audit hash chain and Activity view, auto-lock, styled document generation,
+AI providers, one Plan/Build agent with read-only file tools and approved change proposals, OpenCode
+agent pack, signed plugins, encrypted bundles, assessment import, local MCP server bridge, and native
+file dialogs. Planned: MCP client/tool calling, encrypted multi-profile separation.
 
-Use **Bun** (lockfile is `bun.lock`). Do not introduce npm/yarn/pnpm.
+Use **Cargo** only. There is no npm/yarn/pnpm/Bun toolchain.
 
 ## Commands
 
 ```bash
-bun install
-bun run tauri dev          # desktop app
-bun run dev                # Vite only
-bun run check              # lint + typecheck + Vitest
-bun run build              # tsc --noEmit + vite build
-bun run lint
-bun run typecheck
-bun run test
-bunx vitest run src/test/severity.test.ts   # single frontend test
-
-cargo test --manifest-path src-tauri/Cargo.toml
-cargo test --manifest-path src-tauri/Cargo.toml severity   # filter
-cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-cargo fmt --manifest-path src-tauri/Cargo.toml --check
-cargo audit --file src-tauri/Cargo.lock
-bun audit --audit-level=high
-bun run tauri build --debug --no-bundle
+cargo run -p testtracker-app                  # desktop app
+cargo build --release -p testtracker-app
+cargo check --workspace
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo test -p testtracker-core severity       # filter
+cargo audit
+cargo build -p testtracker-app                # compile-check the UI
 
 # Plugin signing CLI
-cargo run --manifest-path src-tauri/Cargo.toml --bin ttplugin -- keygen publisher.key
-cargo run --manifest-path src-tauri/Cargo.toml --bin ttplugin -- sign examples/plugins/scope-helper publisher.key scope-helper.ttplugin
+cargo run -p testtracker-core --bin ttplugin -- keygen publisher.key
+cargo run -p testtracker-core --bin ttplugin -- sign examples/plugins/scope-helper publisher.key scope-helper.ttplugin
 ```
 
-First Rust build is slow: `rusqlite` compiles bundled SQLCipher + vendored OpenSSL. Linux needs `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`, `libxdo-dev`, `libssl-dev`, `patchelf`, `build-essential`, `pkg-config`.
+First Rust build is slow: bundled SQLCipher + vendored OpenSSL, Typst, and GPUI. Linux needs
+`build-essential pkg-config libssl-dev libasound2-dev libdbus-1-dev libfontconfig-dev libglib2.0-dev
+libva-dev libvulkan1 libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev
+libxcb1-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libzstd-dev`, plus a Vulkan driver and Wayland/X11.
 
 ## Architecture rules
 
-- All secrets and trust decisions live in Rust. The React webview never receives the master key, DB key, provider credentials, or signing private key.
-- Every Tauri command validates input, checks the unlocked session (and role for writes), and returns safe errors. Do not move validation or authorization into the UI.
-- Every mutation appends an audit event in the same SQLite transaction. Do not write a mutation path that skips `security/audit.rs`.
-- Severity is computed server-side from probability/impact (`domain/severity.rs`); the frontend mirror is preview-only.
-- Findings are records, never booleans. Legacy `Finding = No` means "no finding linked". Keep `status`, `result`, evidence, and linked findings separate.
-- Use parameterized SQL only. Migrations are versioned in `src-tauri/src/db/schema.rs` via `PRAGMA user_version`.
-- No remote content, `eval`, or shell/HTTP Tauri plugins in the webview. Keep CSP strict and capabilities minimal. AI network calls happen in Rust only.
-- AI provider API keys are encrypted with the master key and never returned to the UI. Prompts require a server-held redacted preview and one-time consent; never add a command that sends an arbitrary frontend payload directly to a provider. Default policy is local-only; enforce policy in Rust on preview and again on send.
-- The assistant may select only server-approved actions. Validate action type, target ownership, payload shape, and policy before storing a proposal. Never auto-apply assistant output; image input requires a provider explicitly marked vision-capable and an explicit evidence action.
-- Imported template bundles are untrusted data. Validate format, size, content hash, IDs, domains, and text limits; remap identifiers; never execute or render imported HTML.
-- Reference files are untrusted. Parse them in bounded Rust parsers, encrypt them at rest, scope them to one engagement, and expose them only through read-only tools. Tool calls require explicit permission; never bypass the permission check or auto-apply tool output.
-- Plugins are untrusted. Verify the publisher signature at install, store and verify the WASM hash before execution, and keep the runtime free of WASI/filesystem/network imports. Plugin output is untrusted; never auto-apply it. Do not add arbitrary JavaScript/HTML plugin UI to the main webview.
-- The MCP server is opt-in, binds only to loopback, requires a bearer token, and exposes no direct write tools. All MCP proposals require in-app approval. Never log the token or full tool payloads. Stop the server and clear proposals on lock; do not extend the session from MCP calls.
-- Bundles are passphrase-encrypted with Argon2id + XChaCha20-Poly1305. Never weaken the KDF bounds, skip manifest signature verification, or import without checking every file hash and remapping identifiers. Bundles must create new records, never merge into existing engagements.
-- Use `#![deny(unsafe_code)]` and avoid `unsafe` in app code. The only exception is the Linux WebKit DMABUF workaround in `main.rs`, which is explicitly allowed.
-- Do not enable the updater or distribution signing without real keys and an endpoint. Never commit signing keys; use CI secrets. Release artifacts are currently unsigned.
+- Workspace layout: `crates/core` is GUI-free; `crates/app` is the GPUI binary. Only `core` touches
+  the database, vault, keys, AI network calls, MCP server, plugins, bundles, imports, and document
+  renderers.
+- View code calls `testtracker_core::services::*` through `Backend::call`; it must never open
+  `rusqlite`, read `vault.json`, decrypt keys, or hold a session lock in `render`. Do not block the
+  GPUI main thread with database, CPU, or network work.
+- `AppState`, `UnlockedSession`, master/database/provider/signing keys, and the SQLCipher connection
+  stay `pub(crate)` in `core`. Expose new operations through services, not by widening state.
+- Every core operation now lives in `crates/core/src/services/`; keep validation, RBAC,
+  transactions, and audit writes there. Every mutation appends an audit event in the same SQLite
+  transaction via `security/audit.rs`. Never add a mutation path that skips it.
+- Severity is computed in Rust from probability/impact (`domain/severity.rs`). Do not duplicate the
+  matrix in the UI as authoritative logic.
+- Findings are records, never booleans. Legacy `Finding = No` means "no finding linked". Keep
+  `status`, `result`, files, and linked findings separate.
+- Use parameterized SQL only. Migrations are versioned in `crates/core/src/db/schema.rs` via
+  `PRAGMA user_version`.
+- Keep `#![deny(unsafe_code)]` in app/core. Do not add `unsafe` for UI convenience.
+- GPUI is pre-1.0. Keep `gpui-kit` and GPUI versions pinned; do not mix the crates.io `gpui` crate
+  with gpui-kit's re-exported GPUI. Use `gpui_kit::gpui::*` and `gpui_kit::component::*`.
+- Native file dialogs, save dialogs, and clipboard access happen in the app; validate paths, sizes,
+  and extensions in `core` services before storing or executing anything.
+- AI provider API keys are encrypted with the master key and never returned to the UI. Prompts
+  require a server-held redacted preview and one-time consent; never add a path that sends an
+  arbitrary UI payload directly to a provider. Default policy is local-only; enforce policy on
+  preview and again on send.
+- The agent may select only server-approved actions. Validate action type, target ownership,
+  payload shape, and policy before storing a proposal. Never auto-apply assistant or agent output;
+  image input requires a provider explicitly marked vision-capable and an explicit file action.
+- Imported template bundles and engagement files are untrusted data. Validate format, size, content
+  hash, IDs, domains, and text limits; remap identifiers; never execute or render imported HTML.
+  Files are encrypted at rest, scoped to one engagement, parsed in bounded Rust parsers, and exposed
+  only through read-only virtual-path tools requiring explicit permission.
+- Plugins are untrusted. Verify the publisher signature at install, store and verify the WASM hash
+  before execution, and keep the runtime free of WASI/filesystem/network imports. Plugin output is
+  untrusted; never auto-apply it. Do not add arbitrary JavaScript/HTML plugin UI.
+- The agent has one Plan mode and one Build mode. Plan tools are read-only. Build tools may only
+  create `AgentChange`/proposal records; never apply them without explicit user action. Files are
+  read-only to the agent; no shell, arbitrary filesystem paths, or file writes.
+- The MCP server is opt-in, binds only to loopback, requires a bearer token, and exposes no direct
+  write tools. All MCP proposals require in-app approval. Never log the token or full tool payloads.
+  Stop the server and clear proposals on lock; do not extend the session from MCP calls.
+- Bundles are passphrase-encrypted with Argon2id + XChaCha20-Poly1305. Never weaken the KDF bounds,
+  skip manifest signature verification, or import without checking every file hash and remapping
+  identifiers. Bundles must create new records, never merge into existing engagements.
+- The UI is in-process Rust and therefore trusted. Preserve defense-in-depth with the core/app crate
+  boundary and by keeping secrets out of view structs. Do not claim the UI is an OS security
+  boundary. If hostile-user isolation is ever required, split `core` into a separate process.
+- Data directory: `~/.local/share/com.testtracker.desktop` on Linux (identifier-based). Do not
+  change it without a migration; existing vaults live there.
+- Do not enable an updater or distribution signing without real keys and an endpoint. Release
+  artifacts are currently unsigned.
 
-Key files: `src-tauri/src/security/` (crypto, vault, identity, audit), `src-tauri/src/state.rs` (session/auto-lock), `src-tauri/src/mcp/` (local MCP bridge), `src-tauri/src/db/` (schema/repos), `src-tauri/src/commands/` (IPC, including `agent.rs`, `assistant.rs`, `templates.rs`, and `mcp.rs`), `src/features/ai/` and `src/features/mcp/` (UI), `docs/` (architecture, threat model, data model, plugin SDK, AI policy, MCP bridge, template library, OpenCode connection).
+Key files: `crates/core/src/security/` (crypto, vault, identity, audit),
+`crates/core/src/state.rs` (session/auto-lock), `crates/core/src/mcp/` (local MCP bridge),
+`crates/core/src/db/` (schema/repos), `crates/core/src/services/` (IPC-free service layer),
+`crates/core/src/ai/`, `crates/app/src/app.rs` (root view), `crates/app/src/backend.rs`
+(tokio/GPUI bridge), `crates/app/src/ui.rs` (widgets), `docs/` (architecture, threat model,
+data model, plugin SDK, AI policy, MCP bridge, template library).
 
 ## Confidential material
 
-- `reference/` is git-ignored and contains client-identifying and offensive-security source documents. Never commit it, never use `git add -f`, and never copy its contents into tracked files, tests, fixtures, commit messages, docs, or logs.
-- Never commit evidence, generated reports, exports, bundles, databases, or `.env` files. `.gitignore` covers `reference/`, `evidence/`, `reports/`, `exports/`, `*.ttbundle`, `*.ttplugin`, `vault.json`, and `*.db*`.
+- `reference/` is git-ignored and contains client-identifying and offensive-security source
+  documents. Never commit it, never use `git add -f`, and never copy its contents into tracked files,
+  tests, fixtures, commit messages, docs, or logs.
+- Never commit evidence, generated reports, exports, bundles, databases, or `.env` files.
+  `.gitignore` covers `reference/`, `evidence/`, `reports/`, `exports/`, `*.ttbundle`, `*.ttplugin`,
+  `vault.json`, and `*.db*`.
 - Use synthetic data in tests and examples. Do not name clients in code or docs.
 - A fresh clone will not contain `reference/`; that is expected, not missing requirements.
-- New sensitive files at the repo root are only partially covered by `.gitignore`; move them into `reference/` immediately.
+- New sensitive files at the repo root are only partially covered by `.gitignore`; move them into
+  `reference/` immediately.
 
 ## Reference inputs (read-only)
 
-`reference/` holds the legacy tracker, findings register (macro-enabled; vulnerability catalog, inventory, Probability×Impact matrix, OWASP/CWE mapping), per-domain checklists, methodology, engagement lifecycle, report-review criteria, and tools inventory. Never edit these. List the folder locally for exact filenames; do not enumerate client filenames in tracked files.
+`reference/` holds the legacy tracker, findings register (macro-enabled), per-domain checklists,
+methodology, engagement lifecycle, report-review criteria, and tools inventory. Never edit these.
+List the folder locally for exact filenames; do not enumerate client filenames in tracked files.
 
-Reading formats: `unzip -p file.xlsx xl/sharedStrings.xml`, `pdftotext -layout file.pdf -`, `soffice --headless --convert-to ...`. Not installed: `openpyxl`, `python-docx`, `pandas`, `pdfplumber`.
+Reading formats: `unzip -p file.xlsx xl/sharedStrings.xml`, `pdftotext -layout file.pdf -`,
+`soffice --headless --convert-to ...`. Not installed: `openpyxl`, `python-docx`, `pandas`,
+`pdfplumber`.
 
 ## Testing and runtime gotchas
 
-- Rust unit tests cover crypto, vault, identity, audit chain, severity, RBAC, AI redaction/provider parsing/URL policy/agent proposal validation/assistant action parsing/image preparation/reference-file parsers/tool permissions, plugin package signing/ZIP safety/WASM fuel/memory/export checks, bundle encryption/ZIP validation, MCP token/auth/approval/proposal behavior, template bundle integrity, and a full encrypted-DB flow including snapshots/approvals (`src-tauri/src/test_flow.rs`). Add tests for every new security or domain rule.
-- Frontend tests: Vitest + Testing Library (`src/test/`). Use synthetic fixtures only.
-- Before finishing a task run `bun run check`, `cargo clippy ... -- -D warnings`, `cargo test`, `cargo audit`, and `bun audit`.
-- Do not use `reference/` data in automated tests or CI.
-- `tauri build --debug` embeds the current `dist/`. Run `bun run build` first when testing the packaged frontend, or use `tauri dev` for live Vite. Otherwise you may test a stale UI.
-- Linux: `src-tauri/src/main.rs` sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` before WebKit starts to avoid a WebKitGTK + Wayland/NVIDIA freeze. Respect an existing override; do not remove this without testing on Wayland.
-- E2E smoke tests use `tauri-driver` + `WebKitWebDriver` with a throwaway `XDG_DATA_HOME`; never point them at a real vault.
+- Rust unit tests cover crypto, vault, identity, audit chain, severity, RBAC, AI redaction/provider
+  parsing/URL policy/agent proposal validation/assistant action parsing/image preparation/reference
+  file parsers/tool permissions, plugin package signing/ZIP safety/WASM fuel/memory/export checks,
+  bundle encryption/ZIP validation, MCP token/auth/approval/proposal behavior, template bundle
+  integrity, file migration, and a full encrypted-DB flow
+  (`crates/core/src/test_flow.rs`). Add tests for every new security or domain rule.
+- UI tests use `gpui-kit`'s test support (`#[gpui_kit::test]`) where practical. Keep UI tests in
+  `crates/app`; do not depend on a real vault or `reference/`.
+- Before finishing a task run `cargo fmt --all --check`,
+  `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and
+  `cargo audit`.
+- GPUI renders with Vulkan. If the window does not appear, check `vulkaninfo`; try
+  `WAYLAND_DISPLAY=''` for X11. The old WebKit DMABUF workaround is gone.
+- `panic = "abort"` is set for release; a panic terminates the app. Test debug builds before release.
+- The app locks the vault after 15 minutes. Services enforce expiry on every call; the UI also runs a
+  15-second ticker and throttles `touch_session` to once per minute.
 
 ## Git
 
-- Remote `origin` is configured; branch `main`; the repository has zero commits.
+- Remote `origin` is configured; branch `main`.
 - No PR/release conventions exist yet. Do not commit unless the user explicitly asks.
-- Before any commit run `git status` and `git add --dry-run .` to confirm `reference/`, `dist/`, `src-tauri/target/`, and generated output are excluded.
+- Before any commit run `git status` and `git add --dry-run .` to confirm `reference/`, `target/`,
+  and generated output are excluded.

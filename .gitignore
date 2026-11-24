@@ -26,14 +26,8 @@ vault.json
 /*.docx
 /*.pdf
 
-# Node / frontend build output
-node_modules/
-/dist/
-/dev-dist/
-
-# Rust / Tauri build output
-/src-tauri/target/
-/src-tauri/gen/
+# Rust build output
+/target/
 
 # Secrets and local state
 .env

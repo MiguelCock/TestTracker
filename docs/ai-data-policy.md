@@ -69,7 +69,7 @@ organization-specific rules are planned.
 - Audit event per preview, successful call, proposal, applied action, and failure: provider, model,
   skill/purpose, redaction count, prompt hash, response hash, and token usage.
 - Full prompt/response retention is not implemented in v1; the default keeps hashes and metadata only.
-- Provider keys are encrypted with the master key and never exposed to the webview.
+- Provider keys are encrypted with the master key and never exposed to the native UI.
 - Usage and cost budgets are planned.
 
 ## Safety

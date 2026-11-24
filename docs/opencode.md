@@ -1,7 +1,11 @@
-# OpenCode MCP connection
+# OpenCode integration
 
-TestTracker can expose its local MCP bridge to OpenCode. The bridge must be running and the vault
-unlocked.
+TestTracker has a native Plan/Build agent and ships an OpenCode pack that uses the same read/file and
+proposal tools through the local MCP bridge. Use whichever surface you prefer; both share the same
+approval and audit rules.
+
+The ready-to-copy agent files and MCP config live in `integrations/opencode/`. The bridge must be
+running and the vault unlocked.
 
 ## 1. Start the bridge
 
@@ -48,7 +52,11 @@ A connected server appears as:
 http://127.0.0.1:37621/mcp
 ```
 
-Tools are named `testtracker_<tool>`, for example `testtracker_list_engagements`.
+Tools are named `testtracker_<tool>`, for example `testtracker_list_engagements`,
+`testtracker_list_files`, `testtracker_read_file`, and `testtracker_search_files`.
+
+For Plan/Build agents, copy `integrations/opencode/agents/` into your OpenCode agents directory and
+select `testtracker-plan` or `testtracker-build`.
 
 ## Example prompts
 

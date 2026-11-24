@@ -10,7 +10,7 @@ Do not open a public issue for a vulnerability. Use GitHub's private vulnerabili
 https://github.com/MiguelCock/TestTracker/security/advisories/new
 
 Include the affected version, reproduction steps, impact, and any relevant logs. Do not include
-client data, evidence, credentials, or production bundles.
+client data, files, credentials, or production bundles.
 
 ## Supported versions
 
@@ -18,9 +18,11 @@ Only the current `0.1.x` line is supported while the application is pre-release.
 
 ## Security model
 
-- Vault: Argon2id-derived key, SQLCipher database, per-engagement evidence/document keys.
+- Vault: Argon2id-derived key, SQLCipher database, per-engagement file/document keys.
 - Audit: append-only BLAKE3 hash chain, verified in-app.
-- Permissions: Rust-enforced local roles; no secrets are sent to the webview.
+- Permissions: Rust-enforced local roles; view code cannot open the database or read vault keys.
+- Native UI: GPUI app in the same process as the trusted core. The crate boundary keeps secrets and
+  SQL access in `testtracker-core`, but it is not an OS hostile-user boundary.
 - AI: encrypted provider keys, local-only default policy, redaction preview, one-time server-side
   consent, no message-content persistence.
 - Plugins: trusted-publisher Ed25519 signatures, WASM hash verification, no WASI/filesystem/network
@@ -29,20 +31,22 @@ Only the current `0.1.x` line is supported while the application is pre-release.
 - MCP bridge: off by default, loopback-only, bearer token, Host/Origin validation, read/draft tools
   only, explicit in-app approval for every proposal, stops on vault lock. The token grants access to
   all engagements while running; treat it as a high-value local credential.
-- Assistant: fixed server-validated actions, explicit apply, bounded context, redacted text
+- Agent: Plan/Build modes with fixed server-validated actions, explicit apply, bounded context, redacted text
   previews, per-provider vision opt-in, image metadata stripping, and audit metadata only.
 - Template bundles: validated JSON, size/hash checks, domain/text limits, and local ID remapping.
-- Reference files: encrypted at rest, engagement-scoped, parsed with bounded Rust parsers, and
+- Engagement files: encrypted at rest, engagement-scoped, parsed with bounded Rust parsers, and
   reviewed only through read-only tools with explicit per-call approval.
 - Tool permissions: per-engagement, per-tool allow rules can be revoked; every tool call is audited.
+- Native file access: file pickers and save dialogs run in the app, but paths, extensions, and sizes
+  are validated in core services before storage or execution.
 
 ## Release status
 
 - Release artifacts are currently **unsigned**; code signing and an updater endpoint are not
   configured yet. Do not distribute builds publicly until signing is configured.
 - Signing keys and update keys must live in CI secrets, never in the repository.
-- CI runs lint, typecheck, tests, `cargo clippy -D warnings`, `cargo audit`, `bun audit`, a Tauri
-  build, and a verified-secret scan.
+- CI runs formatting, clippy with `-D warnings`, tests, a release build, `cargo audit`, and a
+  verified-secret scan.
 
 ## Dependency exceptions
 

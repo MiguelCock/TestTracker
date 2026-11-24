@@ -68,7 +68,7 @@ inside the document, but prompt injection remains a risk. Review every draft.
 
 - File content is validated by extension, size, and parser; errors are returned as safe validation
   messages.
-- The webview receives only a short text preview and draft metadata. Full extracted text remains in
+- The native UI receives only a short text preview and draft metadata. Full extracted text remains in
   Rust memory until it expires or the vault locks.
 - In-memory extractions, previews, and drafts are cleared on lock and expiry.
 - AI import does not bypass redaction. Cloud use is never implicit.

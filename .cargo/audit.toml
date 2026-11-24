@@ -5,7 +5,12 @@ ignore = [
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
   # zip 8.6.0 comes from docx-rs and is only used to write DOCX packages.
-  # TestTracker never extracts untrusted ZIP/DOCX archives.
+  # TestTracker never extracts untrusted ZIP/DOCX archives; the vulnerable
+  # read/extract paths are not reachable. Revisit when docx-rs updates.
+  "RUSTSEC-2026-0545",
+  "RUSTSEC-2026-0546",
+  "RUSTSEC-2026-0547",
+  "RUSTSEC-2026-0548",
   "RUSTSEC-2026-0367",
   "RUSTSEC-2026-0368",
   "RUSTSEC-2026-0369",

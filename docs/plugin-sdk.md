@@ -67,10 +67,10 @@ hash of the WASM file and verifies it before every execution.
 The CLI creates and verifies packages:
 
 ```bash
-cargo run --manifest-path src-tauri/Cargo.toml --bin ttplugin -- keygen publisher.key
-cargo run --manifest-path src-tauri/Cargo.toml --bin ttplugin -- sign \
+cargo run -p testtracker-core --bin ttplugin -- keygen publisher.key
+cargo run -p testtracker-core --bin ttplugin -- sign \
   examples/plugins/scope-helper publisher.key scope-helper.ttplugin
-cargo run --manifest-path src-tauri/Cargo.toml --bin ttplugin -- verify \
+cargo run -p testtracker-core --bin ttplugin -- verify \
   scope-helper.ttplugin <public-key-hex>
 ```
 
@@ -190,6 +190,6 @@ test case. See its README for signing and installation steps.
 
 - Process runners for external tools.
 - Network access from plugins.
-- Arbitrary JavaScript or HTML in the main webview.
+- Arbitrary JavaScript or HTML in the native application.
 - Plugin marketplace or remote registry.
 - Automatic creation of findings or test cases without user action.

@@ -11,25 +11,22 @@ Migrations are versioned with `PRAGMA user_version`. Foreign keys are enabled.
 | `engagements`                | Project metadata, scope summary, attack surface, status, version       |
 | `engagement_members`         | Engagement-to-profile role assignments                                 |
 | `scope_assets`               | URLs, hosts, APIs, cloud accounts, and in/out-of-scope flags           |
-| `risks`                      | Scoping risks with likelihood, impact, and stored severity             |
-| `assumptions`                | Engagement assumptions                                                 |
-| `contacts`                   | Client and engagement contacts                                         |
+| `risks` / `assumptions` / `contacts` | Legacy hidden tables pending the destructive cleanup migration |
 | `test_case_templates`        | Reusable, domain-specific test cases (web, API, mobile, etc.)          |
 | `test_template_bundles`      | Curated or imported template packs                                     |
 | `test_template_bundle_items` | Templates and stable source IDs in each bundle                         |
-| `engagement_files`           | Encrypted AI review files and deterministic summaries                  |
+| `engagement_files`           | Encrypted virtual files, paths, summaries, and extracted text          |
 | `ai_tool_permissions`        | Per-engagement read-only tool allowlist                                |
 | `test_cases`                 | Engagement test execution records                                      |
 | `findings`                   | Structured findings with severity, OWASP/CWE, remediation, retest      |
 | `finding_test_cases`         | Many-to-many links between findings and tests                          |
 | `finding_assets`             | Links between findings and scope assets (future UI)                    |
-| `evidence`                   | Evidence metadata and encrypted blob references                        |
-| `evidence_blobs`             | Encrypted blob locations and nonces                                    |
-| `snapshots`                  | Immutable engagement snapshots with BLAKE3 content hashes              |
+| `evidence` / `evidence_blobs` | Legacy evidence, migrated into `engagement_files` on unlock           |
+| `snapshots`                  | Legacy snapshots from the removed Review feature                       |
 | `generated_documents`        | Generated PDF/DOCX/XLSX artifacts, encrypted paths, nonces, and hashes |
 | `documents`                  | Editable report content (future)                                       |
 | `document_versions`          | Immutable editable-document versions (future)                          |
-| `approvals`                  | Reviewer decisions, snapshot links, and Ed25519 signatures             |
+| `approvals`                  | Legacy reviewer approvals from the removed Review feature              |
 | `ai_providers`               | AI provider metadata and encrypted API keys                            |
 | `ai_policies`                | Per-engagement AI policy (off, local only, approved cloud)             |
 | `audit_events`               | Append-only hash-chained audit log                                     |
@@ -39,12 +36,12 @@ Migrations are versioned with `PRAGMA user_version`. Foreign keys are enabled.
 
 - A finding is a record. “No finding” is represented by the absence of a linked finding, never a
   boolean.
-- `test_cases.status`, `test_cases.result`, linked findings, and evidence are independent fields. A
-  passed test can still have a result narrative; a failed test may have no finding.
+- `test_cases.status`, `test_cases.result`, linked findings, and files are independent. A passed
+  test can still have a result narrative; a failed test may have no finding.
 - `findings.severity` is derived server-side from `probability` and `impact_score`.
 - Every mutation commits with an audit event in the same transaction.
 - Engagement deletion cascades to its child records; the audit trail remains.
-- `reference/` and generated evidence never enter the repository.
+- `reference/` and generated files never enter the repository.
 
 ## Severity matrix
 
@@ -79,10 +76,10 @@ The first row uses 64 zeroes as `prev_hash`. Verification recomputes the entire 
 deletion, or reordering breaks verification. Audit events are written in the same transaction as
 the mutation they describe.
 
-## Versioning and approvals
+## Versioning
 
-Engagements carry a monotonically increasing `version`. A snapshot stores a point-in-time copy of
-the engagement, scope, tests, findings, and evidence metadata with a BLAKE3 content hash.
+Engagements carry a monotonically increasing `version`. The Review feature and its snapshots are
+removed from the UI; legacy tables remain until the destructive cleanup migration runs.
 
 Plugin packages are signed by trusted publishers and installed under the app data directory. The
 WASM file hash is stored in `plugins` and verified before every execution. Plugin output is not
@@ -95,10 +92,6 @@ written to the database. AI audit events contain hashes and metadata, not messag
 Generated documents are stored as encrypted files under the app data directory with a BLAKE3
 content hash and a per-engagement key. Download decrypts and verifies the hash before returning
 bytes to the UI.
-
-An approval signature covers the approval ID, engagement ID, snapshot ID, decision, timestamp, and
-snapshot content hash. Verification recomputes the message and checks the reviewer's Ed25519 public
-key, so any change to the snapshot or decision invalidates the signature.
 
 Generated reports are immutable artifacts stored in `generated_documents`; editable report content
 and its version history remain planned.

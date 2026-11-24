@@ -1,7 +1,8 @@
 # Architecture
 
 TestTracker is a local-first desktop application for planning, executing, reviewing, and reporting
-penetration-testing engagements. It is built with Tauri 2 (Rust) and React 19 (TypeScript).
+penetration-testing engagements. It is a native Rust application built with **GPUI** and
+**gpui-kit**; there is no webview, JavaScript runtime, or remote content.
 
 ## Status
 
@@ -9,33 +10,37 @@ Implemented foundations:
 
 - Encrypted local vault (Argon2id + SQLCipher).
 - Local profile with an Ed25519 signing identity.
-- Engagements, scope assets, risks, assumptions, contacts.
-- Test-case tracker with a large template library and curated/imported bundles.
-- Structured findings with the Probability × Impact severity matrix and OWASP/CWE fields.
-- Encrypted evidence store with per-engagement key derivation.
-- Immutable engagement snapshots and Ed25519-signed reviewer approvals.
+- Engagements with application summary and scope assets.
+- Global template library with custom templates and curated/imported bundles.
+- Unified Tests & Findings workbench with the Probability × Impact severity matrix and OWASP/CWE
+  fields.
+- Encrypted virtual Files workspace for Postman, Burp, HAR, Procmon, OpenAPI, GraphQL, Nmap, logs,
+  screenshots, and other pentest artifacts.
+- One Plan/Build agent with read-only virtual-file tools and approved change proposals.
 - Document generation (PDF via Typst, DOCX via docx-rs, XLSX via rust_xlsxwriter) with encrypted
   document storage.
 - AI provider connections (Ollama, OpenAI-compatible, Anthropic, Azure OpenAI) with encrypted
   credentials, per-engagement policy, redaction preview, one-time consent, and audit logging.
-- Server-side agent skills with scoped context, validated JSON proposals, and explicit apply
-  approval for summaries, assumptions, tests, test approaches, and findings.
+- Plan and Build agent modes with scoped context, validated proposals, and explicit apply approval
+  for summaries, tests, test approaches, and findings.
 - Optional local MCP server bridge with a loopback-only Streamable HTTP endpoint, bearer-token
   authentication, read tools, draft-only proposal tools, and in-app approval.
 - Engagement assistant with auto-selected validated actions, finding improvement, focused
-  test/finding/evidence context, and text/image evidence analysis.
+  test/finding/file context, and text extraction from engagement files.
 - Curated test templates and bundles with validated JSON import/export.
-- Encrypted reference-file review with Postman, Burp XML, HAR, Procmon, OpenAPI, GraphQL, Nmap,
-  and text parsers.
-- Read-only assistant tools with per-call permission prompts, revocable always-allow rules, and an
-  audited bounded tool loop.
+- Encrypted Files workspace with Postman, Burp XML, HAR, Procmon, OpenAPI, GraphQL, Nmap, and text
+  parsers.
+- Read-only agent file tools with virtual paths, per-call permission prompts, revocable
+  always-allow rules, and an audited bounded tool loop.
 - Styled PDF, DOCX, and XLSX report output with cover pages and severity/status color treatment.
 - Signed read-only WebAssembly plugins with a trusted-publisher store, capability declarations, and
   a fuel-/memory-limited runtime.
 - Passphrase-encrypted engagement bundles with signed manifests, hash verification, and logical
   import that remaps identifiers.
-- Append-only, hash-chained audit events with verification.
+- Append-only, hash-chained audit events with verification, shown in Settings → Activity.
 - Auto-lock and session expiry.
+- OpenCode Plan/Build agent pack sharing the MCP tool surface.
+- Native file open/save dialogs and clipboard integration.
 
 Planned next: MCP client/tool calling, plugin process runners and UI contributions, full-vault
 backup and multi-device sync, and multi-profile separation of duties.
@@ -43,26 +48,28 @@ backup and multi-device sync, and multi-profile separation of duties.
 ## Layers and trust boundaries
 
 ```
-React webview (untrusted)
-   │ typed IPC commands / events
-Tauri core (Rust) — all trust decisions
+GPUI app (crates/app) — native Rust UI
+   │ direct service calls / background tasks
+testtracker-core (crates/core) — all trust decisions
    ├─ domain rules, validation, RBAC
    ├─ SQLCipher database + migrations
    ├─ crypto, vault, identity, audit
    ├─ AI gateway
    ├─ MCP bridge (loopback HTTP, token, approval queue)
    ├─ WASM plugin host
+   ├─ reference-file parsers
    └─ document renderers (PDF, DOCX, XLSX)
         │
         ├─ OS keychain / passphrase-derived keys
-        ├─ encrypted evidence and generated-document store
+        ├─ encrypted engagement files and generated-document store
         ├─ allowlisted AI provider APIs
         └─ encrypted engagement bundles
 ```
 
-The webview never receives the master key, database key, provider credentials, or signing private
-key. The frontend only sees DTOs and session metadata. All mutations validate input and permissions
-in Rust.
+The UI is in-process Rust. It never opens the database, reads `vault.json`, or decrypts provider,
+vault, or signing keys; those fields are `pub(crate)` in `core`. The crate boundary prevents
+accidental access, but it is not an OS hostile-user boundary. If that isolation is required, split
+`core` into a separate process with a narrow IPC surface.
 
 ## Key hierarchy
 
@@ -86,80 +93,67 @@ it.
 
 ## Data flow
 
-1. The React UI calls a typed Tauri command.
-2. Rust checks the session, auto-lock state, and role.
+1. A GPUI view calls a function in `testtracker_core::services::*` through `Backend::call`.
+2. The service checks the session, auto-lock state, and role.
 3. Input is validated against explicit limits.
 4. The mutation runs in a SQLite transaction.
 5. An audit event is appended to the same transaction.
-6. The transaction commits and a DTO is returned.
+6. The transaction commits and a DTO is returned to the view on the GPUI main thread.
 
-Read operations also require an unlocked session and update the session activity timestamp.
+Read operations also require an unlocked session and update the session activity timestamp. Long
+database, document, import, and network work runs on the tokio runtime or GPUI background executor;
+`render` never blocks on the session mutex.
 
 ## Directory layout
 
 ```
-src/                 React application
-  components/        UI primitives and layout
-  features/          auth, dashboard, engagements, settings
-  hooks/             session and auto-lock
-  lib/               IPC, API, labels, formatting, severity
-src-tauri/           Rust core
-  src/commands/      thin IPC command layer
-  src/db/            migrations, repositories, seed templates
-  src/domain/        models, enums, severity, RBAC
-  src/security/      crypto, vault, identity, audit
-  src/mcp/           local MCP bridge, token auth, tools, approvals
-  src/state.rs       process state and unlocked session
-docs/                architecture and security documentation
-reference/           ignored, local-only source material
+crates/core/           Rust core, no GUI dependencies
+  src/domain/          models, enums, severity, RBAC
+  src/db/              migrations, repositories, seed templates
+  src/security/        crypto, vault, identity, audit
+  src/ai/              providers, redaction, agent, assistant, reference tools
+  src/mcp/             loopback MCP bridge, token auth, tools, approvals
+  src/plugins/         signed WASM packages and runtime
+  src/bundles/         encrypted engagement bundles
+  src/imports/         assessment extraction and drafts
+  src/documents/       PDF, DOCX, XLSX renderers
+  src/services/        validation + transaction + audit service layer
+integrations/opencode/ Plan/Build agents and MCP configuration
+  src/state.rs         process state and unlocked session
+crates/app/            GPUI application
+  src/main.rs          application entry point
+  src/backend.rs       tokio runtime bridge and error mapping
+  src/app.rs           root view, screens, dialogs, session state
+  src/ui.rs            reusable native widgets
+  src/theme.rs         colors and typography tokens
+  src/format.rs        labels and date/byte formatting
+docs/                  architecture and security documentation
+reference/             ignored, local-only source material
 ```
 
 ## Commands
 
 ```bash
-bun install
-bun run dev            # Vite only
-bun run tauri dev      # desktop application
-bun run check          # lint + typecheck + tests
-bun run build          # production frontend build
-cd src-tauri && cargo test
-cd src-tauri && cargo clippy --all-targets -- -D warnings
+cargo run -p testtracker-app
+cargo build --release -p testtracker-app
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo audit
 ```
 
-## Design decisions
+## Security invariants
 
-- **Passphrase-first vault** instead of an OS keychain dependency. It works on every platform and
-  keeps the recovery model explicit. OS keychain integration can be added as an optional unlock
-  accelerator without changing the vault format.
-- **SQLCipher via rusqlite** rather than an unencrypted SQLite file with application-level
-  encryption. This protects indexes, WAL files, and temporary structures.
-- **Hash-chained audit in SQLite** rather than an external log. It commits atomically with the data
-  and can be verified offline.
-- **Structured findings** rather than a boolean. Legacy `Finding = No` means “no linked finding”.
-- **Server-side severity calculation** so clients cannot submit an inconsistent severity.
-- **Native document renderers** instead of external office tooling: Typst for PDF, docx-rs for DOCX,
-  and rust_xlsxwriter for XLSX. Output is encrypted before it is written to disk.
-- **Server-side AI consent**: the redacted prompt is stored in memory with a one-time token; the
-  frontend cannot send an arbitrary payload after preview. Policy and provider existence are
-  re-checked at send time.
-- **Local MCP bridge with no direct writes**: the MCP server binds to loopback, requires a bearer
-  token, validates Host/Origin, and exposes only read tools plus proposals. Proposals are memory
-  only until the user approves them in the desktop UI.
-- **Assistant actions are server-validated**: the model may choose only fixed actions, targets are
-  checked against the engagement, and proposals are never auto-applied.
-- **Imported template bundles are data, not code**: JSON bundles are size-limited, hash-checked,
-  validated, and identifier-remapped before storage.
-- **Host-based locality**: local-only policy is decided by the provider URL host, not by provider
-  type, so a remote Ollama endpoint still requires approved-cloud policy.
-- **Signed WASM plugins**: packages are Ed25519-signed over a BLAKE3 digest, installed only from
-  trusted publishers, hash-checked before each run, and executed with no WASI, filesystem, or
-  network imports. Plugins return suggestions; only the tester can apply them.
-- **Encrypted bundles**: a passphrase-derived key (Argon2id) encrypts a ZIP payload with
-  XChaCha20-Poly1305. The manifest is Ed25519-signed and lists BLAKE3 hashes for every file. Import
-  creates a new engagement and remaps all identifiers; it never merges into existing data.
-- **No remote content in the webview** and a strict CSP. Outbound network calls are explicit,
-  allowlisted AI provider requests from Rust. The optional MCP bridge is an inbound loopback-only
-  listener with token authentication, not a webview network permission.
-- **Linux WebKit workaround**: `main.rs` sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` before Tauri
-  initializes unless the user overrides it. This avoids a known WebKitGTK + Wayland/NVIDIA freeze.
-  It is the only `unsafe` block in the application.
+- **Core-only trust**: the UI cannot open SQLite or read vault/provider/signing keys.
+- **Audit every mutation**: the audit event is written in the same transaction as the data change.
+- **Server-side severity**: probability/impact mapping is authoritative in `domain/severity.rs`.
+- **Bounded parsing**: documents, bundles, plugins, and engagement files are untrusted; validate
+  size, format, hashes, IDs, paths, and text limits before use.
+- **Explicit network consent**: AI prompts require a redacted preview and one-time consent; policy is
+  checked again on send.
+- **No auto-apply**: agent, plugin, and MCP output is a proposal until the user applies it.
+- **Plan is read-only**: the Plan agent has no write tools; Build proposals require explicit apply.
+- **Loopback-only MCP**: bearer token, Host/Origin validation, no direct write tools, stop on lock.
+- **No remote content**: the app loads no web content and has no shell/HTTP plugin surface.
+- **Native file validation**: dialogs choose paths, but core validates extension, size, and content
+  before storage or execution.

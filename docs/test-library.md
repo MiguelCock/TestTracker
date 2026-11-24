@@ -38,7 +38,7 @@ Built-in bundles cover:
 - secure code review
 - full application assessment
 
-Add a bundle from **Test tracker → From templates**. Existing tests are deduplicated by template ID.
+Add a bundle from **Test tracker → Templates**. Existing tests are deduplicated by template ID.
 
 ## Import and export
 

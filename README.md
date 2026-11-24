@@ -2,10 +2,10 @@
 
 TestTracker is a local-first desktop application for planning, executing, reviewing, and reporting
 penetration-testing engagements. It replaces spreadsheet workflows with a structured, encrypted
-workspace for engagements, scope, test cases, findings, evidence, review sign-offs, and audit
-history.
+workspace for engagements, scope, tests, findings, files, and audit history.
 
-Built with Tauri 2, Rust, React 19, and TypeScript.
+Built with **Rust + GPUI** (gpui-kit) as a native desktop application. There is no webview, no
+remote content, and no JavaScript UI runtime.
 
 ## Features
 
@@ -16,61 +16,61 @@ Built with Tauri 2, Rust, React 19, and TypeScript.
   import/export, status, results, and notes.
 - **Findings** — structured records with server-computed Probability × Impact severity, OWASP/CWE
   references, remediation, retest status, owner, and linked test cases.
-- **Encrypted evidence** — screenshots and files encrypted per engagement with integrity hashes,
-  previews, downloads, and links to findings/tests.
-- **Review and sign-off** — immutable snapshots and Ed25519-signed reviewer decisions verified
-  locally.
+- **Encrypted files workspace** — virtual folders for Postman collections, Burp exports, Procmon
+  captures, logs, screenshots, and other pentest artifacts. Files are encrypted at rest and exposed
+  to the agent as a read-only directory.
+- **Template library** — browse seeded templates, create custom templates, manage bundles, and
+  apply them to engagements.
 - **Document generation** — styled test plan, test-case tracker, findings register, executive
-  summary, and technical report as PDF, DOCX, or XLSX, with color-coded cover pages, tables, and
-  severity/status highlights. Generated files are encrypted at rest.
-- **Engagement assistant** — an auto-routing agent that reads engagement context, drafts summaries,
-  tests, test approaches, and findings, improves existing findings, and summarizes text or image
-  evidence. It can review encrypted Postman, Burp XML, HAR, Procmon, OpenAPI, GraphQL, Nmap, and text
-  reference files through read-only tools with per-call approval. Every write needs explicit
-  approval. Local-only is the default.
-- **Assessment import** — create a new engagement from a previous XLSX/XLSM tracker, DOCX, PDF,
-  Markdown, JSON, or text assessment. Tracker spreadsheets are parsed deterministically; other
-  formats can use AI to produce a reviewable draft. The source file is not stored.
+  summary, and technical report as PDF, DOCX, or XLSX. Generated files are encrypted at rest.
+- **Plan/Build agent** — one policy-controlled agent with a read-only Plan mode and a Build mode
+  that turns work into explicit change proposals. It reads engagement context, tests, findings, and
+  the virtual file tree through read-only tools. Every write needs explicit approval. Local-only is
+  the default.
+- **Assessment import** — create a new engagement from an XLSX/XLSM tracker, DOCX, PDF, Markdown,
+  JSON, or text assessment. Tracker spreadsheets are parsed deterministically; other formats can use
+  AI to produce a reviewable draft.
 - **Local MCP bridge** — opt-in, loopback-only Model Context Protocol server with a bearer token,
-  read tools, draft-only proposal tools, and in-app approval. It grants access to all engagements
-  while running and stops when the vault locks.
-- **Signed plugins** — read-only WebAssembly modules from trusted publishers, executed in a
-  fuel- and memory-limited sandbox with declared capabilities.
+  read tools, draft-only proposal tools, and in-app approval. It stops when the vault locks.
+- **Signed plugins** — read-only WebAssembly modules from trusted publishers, executed in a fuel-
+  and memory-limited sandbox.
 - **Encrypted bundles** — passphrase-encrypted `.ttbundle` export/import for whole engagements,
-  including evidence and generated documents, with signed manifests and hash verification.
+  including engagement files and generated documents, with signed manifests and hash verification.
 - **Audit history** — append-only hash chain with tamper detection.
-- **Dashboard** — open findings by severity, test completion, blocked tests, and recent
-  engagements.
 - **Auto-lock** — keys are cleared from memory after inactivity.
 
 ## Requirements
 
-- **Bun 1.3+** (package manager and scripts)
-- **Rust 1.95+**
-- **Linux build dependencies**: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`,
-  `libayatana-appindicator3-dev`, `libxdo-dev`, `libssl-dev`, `patchelf`, `build-essential`,
-  `pkg-config`
-- macOS and Windows use the standard Tauri prerequisites.
+- Rust 1.100+ (the repository pins it in `rust-toolchain.toml`)
+- Linux build dependencies:
+  `build-essential pkg-config libssl-dev libasound2-dev libdbus-1-dev libfontconfig-dev
+  libglib2.0-dev libva-dev libvulkan1 libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev
+  libx11-xcb-dev libxcb1-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libzstd-dev`
+- A Vulkan-capable GPU driver, plus Wayland or X11. GPUI renders natively; there is no WebKit or
+  WebView2 dependency.
+- macOS and Windows use the platform Rust toolchain and GPU stack.
 
 ## Install and run
 
 ```bash
-bun install
-bun run tauri dev
+cargo run -p testtracker-app          # development build
+cargo build --release -p testtracker-app
+./target/release/testtracker
 ```
 
-Build a release:
+The application data directory is:
 
-```bash
-bun run tauri build
-```
+- Linux: `~/.local/share/com.testtracker.desktop`
+- macOS: `~/Library/Application Support/com.testtracker.desktop`
+- Windows: `%APPDATA%\com.testtracker.desktop`
+
+Override it for testing with `TESTTRACKER_DATA_DIR=/tmp/tt-data`.
 
 ## First run
 
 1. Start TestTracker.
 2. Create a display name and a passphrase of at least 12 characters.
-3. Store the passphrase safely. It cannot be recovered; losing it means losing access to the local
-   vault.
+3. Store the passphrase safely. It cannot be recovered; losing it means losing access to the vault.
 4. The app creates an encrypted database and a local Administrator profile with an Ed25519 identity
    key.
 
@@ -80,300 +80,151 @@ The vault is local to this device. Nothing is uploaded.
 
 ### Dashboard
 
-Shows active engagements, open findings, high/critical exposure, test completion, blocked tests, and
-recent engagements.
+Shows active engagements, open findings, test completion, and recent engagements.
 
 ### Engagements
 
-Create an engagement from **New engagement**. Fill in:
+Create an engagement from **New engagement**. Set the project name, client code, status, dates,
+application summary, attack surface, scope, risks, assumptions, and contacts. Scope and context can
+be refined with **Edit scope & context** (pipe-separated lines).
 
-- Project name and optional client code (use short codes rather than full client names).
-- Status and test dates.
-- Application summary and attack surface.
-- Scope assets (URL, host, IP, API, repository, cloud account, mobile app, thick client, other).
-- Risks with likelihood and impact (0–9); severity is calculated automatically.
-- Assumptions and contacts.
+### Tests & Findings
 
-Open an engagement to access its tabs.
+The tracker and findings register share one workbench:
 
-### Test tracker
+- Tests are the primary rows; each row shows status, category, linked finding count, and actions.
+- Expand a test to see its linked findings and add a new finding directly to it.
+- Standalone findings appear in a separate section.
+- Shared search, test-status, and severity filters.
+- Reorder tests with the up/down controls when no filters are active.
 
-- **From templates** adds reusable test cases by domain or from a curated bundle.
-- **Template bundles** can be added as a set, exported as `.tttemplates.json`, and imported for
-  cross-team updates. Imported bundles are validated and can be deleted; built-in bundles are
-  immutable. See `docs/test-library.md`.
-- **Custom test** creates a blank test case.
-- Change status inline, edit the approach, result, and notes, and search/filter large trackers.
-- Reorder tests with the up/down controls (filters must be cleared while reordering).
-- The current user is recorded as the assignee automatically; there is no manual assignee field.
-- Keep status, result, evidence, and linked findings separate. A passed test is not a finding.
+A passed test is not a finding. Keep test status/result and structured findings separate.
 
-### Findings
+### Files
 
-- Create a finding with probability and impact; the server computes severity using the approved
-  matrix.
-- Add OWASP/CWE references, remediation, owner, retest status, and linked test cases.
-- Use severity consistently: Informational, Low, Medium, High, Critical.
+Files is the engagement's encrypted artifact workspace:
 
-### Evidence
+- Virtual folders such as `postman/`, `burp/`, `procmon/`, `logs/`, and `notes/`.
+- Upload, preview extracted text, download, and delete.
+- Supports Postman, Burp XML, HAR, Procmon CSV/XML, OpenAPI, GraphQL, Nmap XML, JSON, CSV, XML,
+  YAML, Markdown, logs, text, images, PDFs, and other binary artifacts (metadata-only when text
+  extraction is unavailable).
+- The agent reads files by virtual path with read-only directory/search tools.
 
-- Attach files up to 8 MB. Content is encrypted before it is written to disk.
-- Add a caption and optionally link the evidence to a finding or test case.
-- Preview images and text, download the decrypted file, or delete the evidence.
-- Evidence is stored under the app data directory, never in the repository.
+Legacy evidence records are migrated into Files automatically on unlock.
 
-### Assistant
+### Agent
 
-- **Assistant** is the first tab when you open an engagement. It has the engagement context and a
-  fixed action catalog, and chooses the action itself from your request.
-- Add providers in **Settings → AI providers**: Ollama/local, OpenAI-compatible, Anthropic, or Azure
-  OpenAI. Credentials are encrypted and never returned to the interface. Mark a provider as
-  **supports image input** only when the selected model can process images.
-- Set the per-engagement **AI policy**: Off, Local models only (default), or Approved cloud
-  providers.
-- Ask a question or use a quick prompt. The server builds a scoped, redacted prompt and shows the
-  exact payload before sending. Consent expires in five minutes and is single-use.
-- The assistant can propose summaries, tests, test approaches, finding drafts, and finding
-  improvements. Every proposal has an explicit **Apply**; nothing is written automatically.
-- Open a finding, test, or evidence item with **Ask assistant** to focus the conversation on it.
-  Image evidence uses a vision-capable provider and is re-encoded to strip metadata before sending.
-- Evidence text extraction supports text, Markdown, JSON, CSV, XML, PDF, and DOCX. Images support
-  PNG, JPEG, and WebP; no OCR is performed.
-- Upload Postman, Burp XML, HAR, Procmon CSV/XML, OpenAPI, GraphQL, Nmap, or text reference files
-  from the Assistant. They are encrypted at rest, parsed locally, and read only through approved
-  tools. Every tool call prompts once, unless you choose **Always allow**; manage those permissions
-  from the Assistant menu. See `docs/ai-agent.md`.
-- The local MCP bridge can be connected to OpenCode through the global config and
-  `TESTTRACKER_MCP_TOKEN`; see `docs/opencode.md`.
-- Conversation history stays in memory for the unlocked session. The audit log stores provider,
-  model, focus, hashes, token usage, and action metadata, not message content or image bytes.
-- See `docs/ai-agent.md` for action and security details.
-- Redaction is best-effort. Local-only permits localhost endpoints, which may themselves proxy to a
-  cloud service; use a trusted local setup.
-- Consumer AI subscriptions generally do not expose API access. Use official APIs, cloud accounts,
-  or local models.
-- **Ollama troubleshooting:** run `ollama pull llama3.2` (or another model) before selecting it.
-  Verify with `ollama list`. In the provider editor, **Load models** lists installed models. An
-  HTTP 404 at `/api/chat` means the model is not installed; the app now shows the provider error.
+The Agent tab is the single AI surface:
 
-### MCP bridge
+- **Plan** reads engagement context and files, then produces a plan without applying changes.
+- **Build** turns approved work into proposals with before/after previews. Nothing is applied until
+  you approve it.
+- Provider credentials, engagement AI policy, redaction preview, and consent apply to both modes.
+- Files in context are shown in the side panel; all engagement files are available by default.
+- Build proposals can create or update tests, findings, scope, and the application summary.
 
-- **MCP** in the sidebar controls an optional local MCP server. It is off by default and starts only
-  when you select **Start bridge**.
-- The server binds to `127.0.0.1` and requires a bearer token on every request. Reveal or regenerate
-  the token from the MCP page.
-- Read tools expose engagement metadata, scope, tests, findings, metrics, and a sanitized drafting
-  context. Contacts, evidence content, documents, and audit history are not exposed.
-- `propose_*` tools create pending drafts only. Review them under **Pending proposals** and select
-  **Approve** or **Reject**. Nothing is written automatically.
-- The token grants access to every engagement in the unlocked vault. Treat it as sensitive and stop
-  the bridge when finished. A connected MCP client may be cloud-backed.
-- The bridge stops on vault lock, auto-lock, app exit, or **Stop**. See `docs/mcp.md` for tool and
-  security details.
+### Templates
 
-### Plugins
+The global Templates page lets you:
 
-- Add publisher Ed25519 public keys in **Settings → Plugins**.
-- Install a signed `.ttplugin` package. Packages signed by an untrusted publisher are rejected.
-- Open an engagement's **Plugins** tab, choose an enabled plugin, and run it.
-- Suggested test cases can be added with one click; suggested findings are display-only.
-- Plugins never receive evidence content and cannot write to the database. The WASM file hash is
-  verified before each run.
-- See `examples/plugins/scope-helper/` and `docs/plugin-sdk.md` for the package format, ABI, and
-  signing CLI.
-
-### Import a previous assessment
-
-- Select **Import assessment** on the Engagements page.
-- Choose an XLSX/XLSM tracker, DOCX, PDF, Markdown, JSON, or text file up to 25 MB.
-- Tracker spreadsheets with recognizable headers are parsed deterministically into an engagement
-  draft. Review the parsed tests and findings before applying.
-- For other formats, choose an AI provider and preview the redacted extraction prompt. If the
-  provider is not local, confirm the cloud upload explicitly before the preview. The AI returns a
-  structured draft, never direct writes.
-- **Create engagement** imports the draft as a new engagement in draft status, with new identifiers,
-  the current user as owner/assignee, and linked findings when titles match.
-- Evidence files, snapshots, approvals, and audit history are not imported. Add evidence and verify
-  historical results before relying on the new records.
-- Full behavior and limits: `docs/imports.md`.
-
-### Encrypted bundles
-
-- **Export bundle** on an engagement creates a `.ttbundle` encrypted with a passphrase you choose.
-- Bundles include scope, risks, assumptions, contacts, test cases, findings, evidence, and
-  optionally generated documents.
-- **Import bundle** on the Engagements page creates a new engagement with new identifiers and
-  remapped test/finding/evidence links. Existing data is not modified.
-- Import verifies the encrypted envelope, file hashes, manifest signature, and record limits.
-- The manifest signature is self-signed and shown as a fingerprint. It proves integrity, not the
-  sender's identity; confirm the fingerprint out of band.
-- Snapshots, approvals, audit history, AI data, and plugins are not included in bundles.
-- Limits: 25 MB of bundle content, 40 MB bundle file. Passphrases cannot be recovered.
-- Full format and security details: `docs/bundles.md`.
-
-### Review and sign-off
-
-- **Create snapshot** captures the engagement, scope, risks, assumptions, contacts, tests, findings,
-  and evidence metadata at the current version.
-- **Sign off** records an approval, change request, or rejection against a snapshot.
-- Signatures are verified against the snapshot hash; editing the database invalidates them.
-- In the current single-profile build, the local Administrator can sign its own snapshot. Multiple
-  local profiles and separation of duties are planned.
+- Browse and search seeded templates by domain and category.
+- Create, edit, and delete custom templates.
+- Apply a template to a selected engagement.
+- Manage bundles: apply, import, export, and delete.
+- Import a template bundle JSON from another team.
 
 ### Documents
 
-- Generate a **test plan**, **test-case tracker**, **findings register**, **executive summary**, or
-  **technical report** from the current engagement data with a colored cover page, section
-  headings, and severity/status highlights.
-- Choose **PDF** or **DOCX** for reports. **XLSX** is available for the test-case tracker and
-  findings register.
-- Generated files are encrypted in the app data directory. Download decrypts them locally.
-- PDF rendering uses embedded fonts; content in scripts not covered by those fonts may not render.
-- Deleting a document removes its encrypted file; deleting an engagement removes all of its
-  generated documents.
+Generate styled PDF, DOCX, and XLSX reports. Reports now cover the application summary, scope, tests,
+and findings; evidence and review sections were removed.
 
-### Audit
+### MCP bridge
 
-- Every mutation writes an audit event in the same database transaction.
-- **Verify chain** recomputes the hash chain and reports tampering.
-- Events include actor, action, entity, timestamp, and metadata.
+Start the loopback bridge from **MCP**. Reveal or regenerate the bearer token, review draft proposals,
+and approve or reject them in the app. The bridge stops when the vault locks.
 
-### Locking
+### Bundles and imports
 
-Use the lock button in the sidebar to clear keys from memory. The app also auto-locks after 15
-minutes of inactivity.
+- **Export bundle** on an engagement creates a passphrase-encrypted `.ttbundle`.
+- **Import bundle** on the Engagements page creates a new engagement with new identifiers.
+- **Import assessment** extracts XLSX/DOCX/PDF/text documents into a reviewable draft.
 
 ## Security model
 
-- The React webview never receives the master key, database key, or signing private key.
+- The UI is native Rust, and all database, key, and provider access lives in `testtracker-core`.
+  View code calls the service layer; it does not open SQLite or read vault keys.
 - All validation, authorization, and severity calculations happen in Rust.
-- The database is encrypted with SQLCipher; evidence blobs and generated documents are encrypted with per-engagement keys.
-- AI provider keys are encrypted with the vault key and only decrypted in memory for an approved request.
-- AI prompts require a redaction preview and a server-side one-time consent; cloud providers are blocked unless the engagement policy allows them.
-- Assistant actions receive only scoped engagement context, return validated JSON, and cannot write until the user applies the proposal.
-- Reference files are encrypted at rest, engagement-scoped, parsed by bounded Rust parsers, and readable only through explicitly approved read-only tools.
-- Image analysis is opt-in per evidence item and only uses providers explicitly marked as vision-capable. Images are re-encoded and metadata is stripped before sending.
-- The MCP bridge binds only to loopback, requires a bearer token, validates Host/Origin, exposes no direct write tools, and stops on vault lock.
-- Assessment import treats document text as untrusted, uses the redaction pipeline for AI prompts, requires explicit cloud consent for non-local providers, and only writes after draft approval.
-- Plugins are signed by trusted publishers, verified on install, hash-checked before every run, and executed with no filesystem, network, or WASI access.
-- Bundles use Argon2id-derived keys and XChaCha20-Poly1305 encryption; manifests are Ed25519-signed and all files are hash-verified on import.
+- The database is encrypted with SQLCipher; engagement files and generated documents are encrypted
+  with per-engagement keys.
+- AI provider keys are encrypted with the vault key and only decrypted in memory for an approved
+  request.
+- AI prompts require a redaction preview and a server-side one-time consent; cloud providers are
+  blocked unless the engagement policy allows them.
+- Agent and MCP actions return validated proposals and cannot write until the user applies them.
+- Engagement files are encrypted at rest, engagement-scoped, parsed by bounded Rust parsers, and
+  readable only through explicitly approved read-only tools.
+- Image files are stored in Files; text extraction is metadata-only and images are never sent to a
+  provider without an explicit request.
+- The MCP bridge binds only to loopback, requires a bearer token, validates Host/Origin, exposes no
+  direct write tools, and stops on vault lock.
+- Assessment import treats document text as untrusted and only writes after draft approval.
+- Plugins are signed by trusted publishers, verified on install, hash-checked before every run, and
+  executed with no filesystem, network, or WASI access.
+- Bundles use Argon2id-derived keys and XChaCha20-Poly1305 encryption; manifests are Ed25519-signed
+  and all files are hash-verified on import.
 - The audit log is append-only and hash-chained.
-- The Tauri capability set is minimal; there are no shell or HTTP webview plugins, no remote
-  content, and a strict Content Security Policy.
-- No telemetry. AI network calls are explicit, redacted, policy-controlled, and audited. Plugins have no network access.
+- No telemetry. AI network calls are explicit, redacted, policy-controlled, and audited. Plugins have
+  no network access.
 
 Local-first limitation: a device owner can read the local database. Local roles prevent mistakes and
-structure review, but they are not hostile-user isolation. Cryptographic sign-offs and the audit
-chain make changes verifiable when data is exported in future versions.
+structure review, but they are not hostile-user isolation. The append-only audit chain makes changes
+verifiable locally and when engagement data is exported.
 
 ## Data, backups, and reset
 
-TestTracker stores its data in the platform application data directory:
+The application data directory contains `vault.json`, the encrypted database, encrypted engagement files,
+generated documents, and installed plugins. Back up the entire directory while the app is closed. To
+reset, close the app and delete the directory. **This destroys the vault and all files.**
 
-- Linux: `~/.local/share/com.testtracker.desktop`
-- macOS: `~/Library/Application Support/com.testtracker.desktop`
-- Windows: `%APPDATA%\com.testtracker.desktop`
+## Linux notes
 
-The directory contains `vault.json`, the encrypted database, encrypted evidence, generated documents,
-installed plugins, and WebKit cache files. Engagement bundles are user-selected downloads and are not
-stored in the app data directory. Back up the entire directory while the app is closed. A built-in encrypted backup workflow is
-planned.
-
-To reset the app, close it and delete that directory. **This destroys the vault and all evidence.**
-
-## Linux troubleshooting
-
-TestTracker sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` on Linux before WebKit initializes. This avoids
-a known WebKitGTK + Wayland/NVIDIA freeze where the window stops repainting and accepting input.
-
-To opt out or test another workaround:
+GPUI uses native Wayland/X11 windowing. If a window does not appear, verify that a Vulkan driver is
+installed (`vulkaninfo`) and try X11:
 
 ```bash
-WEBKIT_DISABLE_DMABUF_RENDERER=0 bun run tauri dev
-WEBKIT_DISABLE_COMPOSITING_MODE=1 bun run tauri dev
-GDK_BACKEND=x11 bun run tauri dev
+WAYLAND_DISPLAY='' cargo run -p testtracker-app
 ```
 
-If the interface still freezes, close the app, remove `~/.cache/fontconfig`, run `fc-cache -f`, and
-restart. This resolves a separate WebKitGTK fontconfig loop reported on some Linux systems.
+The old WebKitGTK DMABUF workaround is no longer used.
 
 ## Development
 
 ```bash
-bun run dev              # Vite only
-bun run tauri dev        # desktop app
-bun run check            # ESLint + TypeScript + Vitest
-bun run build            # typecheck + production frontend build
-bun run test             # Vitest
-bun run lint
-bun run typecheck
-bun run format:check
-
-cargo test --manifest-path src-tauri/Cargo.toml
-cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo audit
+cargo build --release -p testtracker-app
 
 # Plugin signing tool
-cargo run --manifest-path src-tauri/Cargo.toml --bin ttplugin -- keygen publisher.key
-cargo run --manifest-path src-tauri/Cargo.toml --bin ttplugin -- sign \
+cargo run -p testtracker-core --bin ttplugin -- keygen publisher.key
+cargo run -p testtracker-core --bin ttplugin -- sign \
   examples/plugins/scope-helper publisher.key scope-helper.ttplugin
 ```
 
-The first Rust build compiles bundled SQLCipher, vendored OpenSSL, and Typst, and can take several minutes.
+The first build compiles bundled SQLCipher, vendored OpenSSL, Typst, and GPUI; it can take several
+minutes. CI runs formatting, clippy, tests, a release build, dependency audit, and secret scanning on
+Linux. Release artifacts are currently unsigned.
 
-CI runs frontend checks, Rust formatting/clippy/tests, and a dependency audit on Linux.
-
-## Release hardening
-
-Local verification:
-
-```bash
-bun run check
-cargo fmt --manifest-path src-tauri/Cargo.toml --check
-cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path src-tauri/Cargo.toml
-cargo audit --file src-tauri/Cargo.lock
-bun audit --audit-level=high
-bun run tauri build --debug --no-bundle
-```
-
-CI runs frontend checks, Rust formatting/clippy/tests, a full Tauri debug build, dependency audits,
-and a verified-secret scan. The release workflow builds Linux, Windows, and macOS bundles and
-uploads them as workflow artifacts on `v*` tags.
-
-**Signing status:** release artifacts are currently unsigned and no updater endpoint is configured.
-Do not distribute public builds until code signing, updater signing, and release-key management are
-in place. Signing keys must be stored in CI secrets, never committed. See `SECURITY.md` and
-`.cargo/audit.toml` for the dependency-audit exceptions and rationale.
-
-## Project layout
+## Repository layout
 
 ```
-src/                 React UI (features, components, hooks, lib)
-src-tauri/src/
-  bundles/           encrypted engagement bundle format, payload, and import/export
-  commands/          Tauri IPC commands
-  db/                schema, migrations, repositories
-  domain/            models, severity, RBAC, signing
-  plugins/           manifest, package signing, WASM runtime
-  security/          crypto, vault, identity, audit
-  mcp/               local MCP bridge, token auth, tools, approvals
-  bin/ttplugin.rs    plugin signing CLI
-  state.rs           session, auto-lock, AI consent
-docs/                architecture, threat model, data model, plugin SDK, AI policy
-reference/           ignored, local-only source material
+crates/core/    domain, database, security, AI, MCP, plugins, bundles, imports, documents, services
+crates/app/     GPUI application, theme, components, views
+crates/core/src/bin/ttplugin.rs   plugin signing CLI
+docs/           architecture, threat model, data model, plugin SDK, AI policy, MCP bridge
+integrations/opencode/  OpenCode Plan/Build agents and MCP config
+examples/       plugin examples
+reference/      ignored local-only source material
 ```
-
-## Roadmap
-
-- Full-vault encrypted backup/restore and optional multi-device sync.
-- Multiple local profiles and separation of duties.
-- MCP client support for external tool servers, multi-step AI tool loops, streaming, and optional
-  encrypted prompt retention.
-- Plugin process runners, schema-driven UI contributions, and a plugin registry.
-
-## Confidentiality
-
-This repository must not contain client-identifying material, assessment evidence, generated
-reports, exported bundles, databases, or credentials. `reference/` is git-ignored and local-only.
-Use synthetic data in tests and examples.

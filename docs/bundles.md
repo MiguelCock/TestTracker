@@ -27,8 +27,8 @@ ciphertext    remaining bytes
 ```
 manifest.json       signed metadata and file hashes
 engagement.json     engagement, scope, risks, assumptions, contacts, tests, findings,
-                    evidence metadata, and document metadata
-evidence/<id>       plaintext evidence bytes
+                    file metadata, and document metadata
+files/<id>          plaintext engagement-file bytes
 documents/<id>      plaintext generated-document bytes (optional)
 ```
 
@@ -50,7 +50,7 @@ read into memory; bundles are not extracted to disk by the importer.
   "includeDocuments": true,
   "files": {
     "engagement.json": "blake3 hex",
-    "evidence/...": "blake3 hex"
+    "files/...": "blake3 hex"
   },
   "payloadHash": "blake3 hex",
   "signature": "ed25519 hex"
@@ -66,10 +66,10 @@ read into memory; bundles are not extracted to disk by the importer.
 ## Import behavior
 
 - A bundle always creates a **new engagement**; it never merges into an existing one.
-- Scope, risk, contact, assumption, test-case, finding, evidence, and document identifiers are
+- Scope, test-case, finding, file, and document identifiers are
   regenerated.
-- Test-case links on findings and evidence are remapped to the new test-case IDs.
-- Evidence and documents are re-encrypted with the new engagement's keys.
+- Test-case links on findings are remapped to the new test-case IDs; file paths are preserved.
+- Files and documents are re-encrypted with the new engagement keys.
 - The engagement name receives an ` (imported)` suffix.
 - Snapshots, approvals, audit history, AI data, and plugins are not included.
 - Import is transactional for the database. Files written before a failed commit are removed.
