@@ -33,7 +33,7 @@ ed25519-dalek = "3"
 blake3 = "1.8"
 rand = "0.9"
 zeroize = { version = "1.9", features = ["derive"] }
-base64 = "0.22"
+base64 = "0.23"
 hex = "0.4"
 typst = "0.15"
 typst-pdf = "0.15"
