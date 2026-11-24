@@ -40,7 +40,7 @@ typst-pdf = "0.15"
 typst-layout = "0.15"
 typst-kit = { version = "0.15", default-features = false, features = ["embedded-fonts"] }
 docx-rs = "0.4"
-rust_xlsxwriter = "0.102"
+rust_xlsxwriter = "0.103"
 reqwest = { version = "0.13", default-features = false, features = ["json", "default-tls"] }
 regex = "1"
 url = "2"
