@@ -51,6 +51,39 @@ jobs:
       - run: cargo test --workspace
       - run: cargo build --release -p testtracker-app
 
+  migration-rehearsal:
+    name: Migration rehearsal
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "."
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            libasound2-dev \
+            libdbus-1-dev \
+            libfontconfig-dev \
+            libglib2.0-dev \
+            libva-dev \
+            libvulkan1 \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libx11-xcb-dev \
+            libxcb1-dev \
+            libxcb-randr0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libzstd-dev
+      - run: ./scripts/migration-rehearsal.sh
+
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-24.04

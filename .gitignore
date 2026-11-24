@@ -5,6 +5,7 @@
 /evidence/
 /reports/
 /exports/
+/qa-screenshots/
 *.ttbundle
 *.ttplugin
 

@@ -21,7 +21,7 @@ Migrations are versioned with `PRAGMA user_version`. Foreign keys are enabled.
 | `findings`                   | Structured findings with severity, OWASP/CWE, remediation, retest      |
 | `finding_test_cases`         | Many-to-many links between findings and tests                          |
 | `finding_assets`             | Links between findings and scope assets (future UI)                    |
-| `evidence` / `evidence_blobs` | Legacy evidence, migrated into `engagement_files` on unlock           |
+| `evidence` / `evidence_blobs` | Legacy evidence, copied into `engagement_files` by Settings → Maintenance (manual, one-way) |
 | `snapshots`                  | Legacy snapshots from the removed Review feature                       |
 | `generated_documents`        | Generated PDF/DOCX/XLSX artifacts, encrypted paths, nonces, and hashes |
 | `documents`                  | Editable report content (future)                                       |
@@ -77,6 +77,11 @@ deletion, or reordering breaks verification. Audit events are written in the sam
 the mutation they describe.
 
 ## Versioning
+
+Migrations are forward-only and registered in order in `crates/core/src/db/schema.rs`
+(`MIGRATIONS`, `LATEST_VERSION`). Add new SQL to the end; never renumber or rewrite a shipped
+migration. The oldest supported source schema is version 1. The destructive cutover is governed by
+[`docs/migration-policy.md`](migration-policy.md).
 
 Engagements carry a monotonically increasing `version`. The Review feature and its snapshots are
 removed from the UI; legacy tables remain until the destructive cleanup migration runs.

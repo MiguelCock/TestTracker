@@ -392,3 +392,22 @@ ALTER TABLE test_case_templates ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
 
 UPDATE engagement_files SET relative_path = filename WHERE relative_path = '';
 "#;
+
+/// Ordered list of schema migrations. Index 0 upgrades a database at
+/// `user_version = 0` to version 1, index 1 upgrades version 1 to 2, and so on.
+///
+/// Add new migrations to the end and never renumber or rewrite shipped SQL.
+pub const MIGRATIONS: &[&str] = &[
+    MIGRATION_1,
+    MIGRATION_2,
+    MIGRATION_3,
+    MIGRATION_4,
+    MIGRATION_5,
+    MIGRATION_6,
+    MIGRATION_7,
+    MIGRATION_8,
+    MIGRATION_9,
+    MIGRATION_10,
+];
+
+pub const LATEST_VERSION: i64 = MIGRATIONS.len() as i64;

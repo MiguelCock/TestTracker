@@ -8280,7 +8280,6 @@ dependencies = [
  "gpui-kit",
  "image",
  "serde_json",
- "tempfile",
  "testtracker-core",
  "tokio",
 ]

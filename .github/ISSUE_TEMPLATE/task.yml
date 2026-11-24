@@ -1,0 +1,56 @@
+name: Task
+description: A scoped backlog task with context, acceptance criteria, and security notes.
+title: "TT-000 — "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for child issues. Keep one deliverable per issue.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why this work exists and which epic it belongs to.
+      placeholder: Part of Epic E0. Explain the current behavior and the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is included and explicitly excluded.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable, testable outcomes. Use a checklist.
+      value: |
+        - [ ] 
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Blocking issues, migrations, or decisions. Write "None" when empty.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security / audit notes
+      description: Trust boundaries, secrets, migrations, audit events, or policy impact.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Tests
+      description: Automated and manual verification.
+      value: |
+        - [ ] 
+    validations:
+      required: true

@@ -16,6 +16,9 @@ pub mod snapshots;
 pub mod templates;
 pub mod test_cases;
 
+#[cfg(test)]
+mod migration_tests;
+
 use std::path::Path;
 use std::time::Duration;
 
@@ -57,20 +60,20 @@ pub fn open_encrypted(path: &Path, master_key: &[u8; 32]) -> AppResult<Connectio
 
 pub fn apply_migrations(conn: &mut Connection) -> AppResult<()> {
     let mut version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    while version < 10 {
-        let migration = match version {
-            0 => schema::MIGRATION_1,
-            1 => schema::MIGRATION_2,
-            2 => schema::MIGRATION_3,
-            3 => schema::MIGRATION_4,
-            4 => schema::MIGRATION_5,
-            5 => schema::MIGRATION_6,
-            6 => schema::MIGRATION_7,
-            7 => schema::MIGRATION_8,
-            8 => schema::MIGRATION_9,
-            9 => schema::MIGRATION_10,
-            _ => break,
-        };
+    if version > schema::LATEST_VERSION {
+        return Err(AppError::Conflict(format!(
+            "database schema version {version} is newer than this build supports ({}).",
+            schema::LATEST_VERSION
+        )));
+    }
+    while version < schema::LATEST_VERSION {
+        let index = usize::try_from(version)
+            .map_err(|_| AppError::Internal("invalid database schema version".into()))?;
+        let migration = schema::MIGRATIONS.get(index).ok_or_else(|| {
+            AppError::Internal(format!(
+                "missing migration {index} for database schema version {version}"
+            ))
+        })?;
         let tx = conn.transaction()?;
         tx.execute_batch(migration)?;
         tx.pragma_update(None, "user_version", version + 1)?;

@@ -45,6 +45,11 @@ Implemented foundations:
 Planned next: MCP client/tool calling, plugin process runners and UI contributions, full-vault
 backup and multi-device sync, and multi-profile separation of duties.
 
+Operational references: [`operations.md`](operations.md) for backup/restore and rollback,
+[`migration-policy.md`](migration-policy.md) for schema and cutover gates,
+[`information-architecture.md`](information-architecture.md) for the target screen map, and
+[`visual-baseline.md`](visual-baseline.md) for known layout defects.
+
 ## Layers and trust boundaries
 
 ```

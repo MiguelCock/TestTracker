@@ -31,6 +31,7 @@ cargo test --workspace
 cargo test -p testtracker-core severity       # filter
 cargo audit
 cargo build -p testtracker-app                # compile-check the UI
+./scripts/migration-rehearsal.sh              # migration + copied-data-dir rehearsal
 
 # Plugin signing CLI
 cargo run -p testtracker-core --bin ttplugin -- keygen publisher.key
@@ -104,7 +105,8 @@ Key files: `crates/core/src/security/` (crypto, vault, identity, audit),
 `crates/core/src/db/` (schema/repos), `crates/core/src/services/` (IPC-free service layer),
 `crates/core/src/ai/`, `crates/app/src/app.rs` (root view), `crates/app/src/backend.rs`
 (tokio/GPUI bridge), `crates/app/src/ui.rs` (widgets), `docs/` (architecture, threat model,
-data model, plugin SDK, AI policy, MCP bridge, template library).
+data model, plugin SDK, AI policy, MCP bridge, template library, operations, migration policy,
+information architecture, visual baseline).
 
 ## Confidential material
 
@@ -135,8 +137,9 @@ Reading formats: `unzip -p file.xlsx xl/sharedStrings.xml`, `pdftotext -layout f
   parsing/URL policy/agent proposal validation/assistant action parsing/image preparation/reference
   file parsers/tool permissions, plugin package signing/ZIP safety/WASM fuel/memory/export checks,
   bundle encryption/ZIP validation, MCP token/auth/approval/proposal behavior, template bundle
-  integrity, file migration, and a full encrypted-DB flow
-  (`crates/core/src/test_flow.rs`). Add tests for every new security or domain rule.
+  integrity, file migration, migration fixtures (v1→latest, v9→latest, idempotency), copied data
+  directory restore, and a full encrypted-DB flow (`crates/core/src/test_flow.rs`). Add tests for
+  every new security or domain rule.
 - UI tests use `gpui-kit`'s test support (`#[gpui_kit::test]`) where practical. Keep UI tests in
   `crates/app`; do not depend on a real vault or `reference/`.
 - Before finishing a task run `cargo fmt --all --check`,

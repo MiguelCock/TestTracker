@@ -1,0 +1,37 @@
+name: Epic
+description: A tracking issue for a group of child tasks and an exit gate.
+title: "Epic E0 — "
+labels: ["epic"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: The outcome this epic delivers.
+    validations:
+      required: true
+  - type: textarea
+    id: children
+    attributes:
+      label: Child issues
+      description: Link each child issue as a task list item.
+      value: |
+        - [ ] #
+    validations:
+      required: true
+  - type: textarea
+    id: exit
+    attributes:
+      label: Exit criteria
+      description: Conditions that must be true before the epic closes.
+      value: |
+        - [ ] 
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Cross-cutting decisions, risks, or sequencing constraints.
+    validations:
+      required: false

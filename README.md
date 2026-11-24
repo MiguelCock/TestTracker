@@ -183,9 +183,14 @@ verifiable locally and when engagement data is exported.
 
 ## Data, backups, and reset
 
-The application data directory contains `vault.json`, the encrypted database, encrypted engagement files,
-generated documents, and installed plugins. Back up the entire directory while the app is closed. To
-reset, close the app and delete the directory. **This destroys the vault and all files.**
+The application data directory contains `vault.json`, the encrypted database, encrypted engagement
+files, generated documents, and installed plugins. Back up the entire directory while the app is
+closed; `vault.json` and `testtracker.db` must always be restored together.
+
+See [`docs/operations.md`](docs/operations.md) for the backup, verification, restore, and rollback
+procedure, and [`docs/migration-policy.md`](docs/migration-policy.md) for the forward-only schema
+policy. To reset, close the app and delete the directory. **This destroys the vault and all
+files.**
 
 ## Linux notes
 
@@ -206,6 +211,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo audit
 cargo build --release -p testtracker-app
+
+# Migration fixture and copied-data-directory rehearsal
+./scripts/migration-rehearsal.sh
 
 # Plugin signing tool
 cargo run -p testtracker-core --bin ttplugin -- keygen publisher.key
