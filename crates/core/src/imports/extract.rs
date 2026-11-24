@@ -351,19 +351,18 @@ fn docx_text(bytes: &[u8]) -> AppResult<String> {
     loop {
         match reader.read_event_into(&mut buffer) {
             Ok(Event::Text(text)) => {
-                if let Ok(value) = text.xml10_content() {
-                    out.push_str(&value);
-                }
+                let value = text.xml10_content();
+                out.push_str(&value);
             }
             Ok(Event::Empty(event)) | Ok(Event::Start(event))
-                if event.local_name().as_ref() == b"tab" =>
+                if event.local_name().as_ref() == "tab" =>
             {
                 out.push('\t');
             }
             Ok(Event::End(event)) => match event.local_name().as_ref() {
-                b"p" => out.push('\n'),
-                b"tc" => out.push('\t'),
-                b"tr" => out.push('\n'),
+                "p" => out.push('\n'),
+                "tc" => out.push('\t'),
+                "tr" => out.push('\n'),
                 _ => {}
             },
             Ok(Event::Eof) => break,

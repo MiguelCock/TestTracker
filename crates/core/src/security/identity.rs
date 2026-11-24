@@ -1,7 +1,7 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
-use rand::RngCore;
+use rand::{TryRng, rngs::SysRng};
 use zeroize::Zeroizing;
 
 use crate::error::{AppError, AppResult};
@@ -9,7 +9,9 @@ use crate::security::crypto::{self, KEY_LEN};
 
 pub fn generate() -> SigningKey {
     let mut secret = [0u8; 32];
-    rand::rng().fill_bytes(&mut secret);
+    SysRng
+        .try_fill_bytes(&mut secret)
+        .expect("the operating system random source must be available");
     SigningKey::from_bytes(&secret)
 }
 

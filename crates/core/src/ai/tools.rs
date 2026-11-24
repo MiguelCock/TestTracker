@@ -341,7 +341,7 @@ fn parse_burp(text: &str) -> AppResult<ParsedReferenceFile> {
         match reader.read_event_into(&mut buffer) {
             Ok(Event::Start(event)) => current = local_name(event.name().as_ref()),
             Ok(Event::Text(value)) => {
-                let value = value.xml10_content().unwrap_or_default().to_string();
+                let value = value.xml10_content().to_string();
                 match current.as_str() {
                     "url" => url.push_str(&value),
                     "method" => method.push_str(&value),
@@ -452,7 +452,7 @@ fn parse_nmap(text: &str) -> AppResult<ParsedReferenceFile> {
                     let mut kind = String::new();
                     for attribute in event.attributes().flatten() {
                         let key = local_name(attribute.key.as_ref());
-                        let value = String::from_utf8_lossy(&attribute.value).to_string();
+                        let value = attribute.value.to_string();
                         if key == "addr" {
                             address = value;
                         } else if key == "addrtype" {
@@ -474,7 +474,7 @@ fn parse_nmap(text: &str) -> AppResult<ParsedReferenceFile> {
                     let mut protocol = String::new();
                     for attribute in event.attributes().flatten() {
                         let key = local_name(attribute.key.as_ref());
-                        let value = String::from_utf8_lossy(&attribute.value).to_string();
+                        let value = attribute.value.to_string();
                         if key == "portid" {
                             port = value;
                         } else if key == "protocol" {
@@ -491,8 +491,7 @@ fn parse_nmap(text: &str) -> AppResult<ParsedReferenceFile> {
                 if current == "hostname"
                     && let Some(host) = host.as_mut()
                 {
-                    host["hostname"] =
-                        Value::String(value.xml10_content().unwrap_or_default().to_string());
+                    host["hostname"] = Value::String(value.xml10_content().to_string());
                 }
             }
             Ok(Event::End(event)) if local_name(event.name().as_ref()) == "host" => {
@@ -562,9 +561,8 @@ fn redact_url(raw: &str) -> Option<String> {
     ))
 }
 
-fn local_name(name: &[u8]) -> String {
-    let name = name.rsplit(|byte| *byte == b':').next().unwrap_or(name);
-    String::from_utf8_lossy(name).to_string()
+fn local_name(name: &str) -> String {
+    name.rsplit(':').next().unwrap_or(name).to_string()
 }
 
 pub fn tool_catalog() -> Value {

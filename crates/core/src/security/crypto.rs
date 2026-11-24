@@ -3,7 +3,7 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use chacha20poly1305::aead::{Aead, Payload};
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
-use rand::RngCore;
+use rand::{TryRng, rngs::SysRng};
 use zeroize::Zeroizing;
 
 use crate::error::{AppError, AppResult};
@@ -30,7 +30,9 @@ impl Default for KdfParams {
 
 pub fn random_bytes<const N: usize>() -> [u8; N] {
     let mut out = [0u8; N];
-    rand::rng().fill_bytes(&mut out);
+    SysRng
+        .try_fill_bytes(&mut out)
+        .expect("the operating system random source must be available");
     out
 }
 
