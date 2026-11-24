@@ -16,7 +16,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 chrono = "0.4"
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
-dirs = "6"
+dirs = "7"
 base64 = "0.22"
 
 [dev-dependencies]
