@@ -230,6 +230,11 @@ fn page_header(compact: bool, title: Div, actions: Div) -> Div {
     }
 }
 
+enum FileListRow {
+    Folder(String),
+    File(usize),
+}
+
 #[allow(dead_code)]
 pub struct RootView {
     backend: Arc<Backend>,
@@ -5014,18 +5019,133 @@ impl RootView {
         });
     }
 
+    fn template_row(&self, index: usize, cx: &mut Context<Self>) -> Div {
+        let template = &self.templates[index];
+        let edit = template.clone();
+        let delete_id = template.id.clone();
+        let use_id = template.id.clone();
+        let use_engagement = self.template_engagement_id.clone();
+        let custom = template.source == "custom";
+        div()
+            .flex()
+            .flex_wrap()
+            .w_full()
+            .items_center()
+            .gap_3()
+            .px_4()
+            .py_3()
+            .h(px(60.))
+            .border_b_1()
+            .border_color(rgb(BORDER_SOFT))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .flex_1()
+                    .overflow_hidden()
+                    .child(
+                        div()
+                            .w_full()
+                            .text_sm()
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(rgb(TEXT))
+                            .truncate()
+                            .child(template.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .w_full()
+                            .text_xs()
+                            .text_color(rgb(TEXT_DIM))
+                            .truncate()
+                            .child(format!(
+                                "{} · {} · {}",
+                                template.domain, template.category, template.source
+                            )),
+                    ),
+            )
+            .child(if custom {
+                ghost_btn(
+                    SharedString::from(format!("edit-template-{}", template.id)),
+                    "Edit",
+                )
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.open_template_form(Some(edit.clone()), window, cx);
+                }))
+                .into_any_element()
+            } else {
+                div().into_any_element()
+            })
+            .child(
+                ghost_btn(
+                    SharedString::from(format!("use-template-{}", template.id)),
+                    "Use",
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    let Some(engagement_id) = use_engagement.clone() else {
+                        this.error = Some("Select an engagement first.".into());
+                        cx.notify();
+                        return;
+                    };
+                    let template_id = use_id.clone();
+                    this.busy = true;
+                    let rx = this.backend.call(move |state| async move {
+                        services::test_cases::create_test_cases_from_templates(
+                            state,
+                            engagement_id,
+                            vec![template_id],
+                        )
+                        .await
+                    });
+                    this.await_result(cx, rx, |this, result, _cx| {
+                        this.busy = false;
+                        match result {
+                            Ok(cases) => {
+                                this.notice = Some(format!(
+                                    "Added {} test(s) to the engagement.",
+                                    cases.len()
+                                ))
+                            }
+                            Err(error) => this.set_error(error),
+                        }
+                    });
+                })),
+            )
+            .child(if custom {
+                ghost_btn(
+                    SharedString::from(format!("delete-template-{}", template.id)),
+                    "Delete",
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.modal = Some(Modal::Confirm {
+                        title: "Delete template".into(),
+                        message: "Delete this custom template? This cannot be undone.".into(),
+                        action: ConfirmAction::Template(delete_id.clone()),
+                    });
+                    cx.notify();
+                }))
+                .into_any_element()
+            } else {
+                div().into_any_element()
+            })
+    }
+
     fn render_templates(&self, cx: &mut Context<Self>) -> Div {
         let search = input_value(&self.test_search, cx).to_lowercase();
-        let filtered: Vec<&TestCaseTemplate> = self
+        let filtered_indices: Vec<usize> = self
             .templates
             .iter()
-            .filter(|template| {
+            .enumerate()
+            .filter(|(_, template)| {
                 search.is_empty()
                     || template.title.to_lowercase().contains(&search)
                     || template.domain.to_lowercase().contains(&search)
                     || template.category.to_lowercase().contains(&search)
             })
+            .map(|(index, _)| index)
             .collect();
+
         let engagement_selector =
             div()
                 .flex()
@@ -5044,118 +5164,25 @@ impl RootView {
                         cx.notify();
                     }))
                 }));
-        let mut template_rows = div().flex().flex_col();
-        for template in &filtered {
-            let edit = (*template).clone();
-            let delete_id = template.id.clone();
-            let use_id = template.id.clone();
-            let use_engagement = self.template_engagement_id.clone();
-            let custom = template.source == "custom";
-            template_rows = template_rows.child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .w_full()
-                    .items_center()
-                    .gap_3()
-                    .px_4()
-                    .py_3()
-                    .border_b_1()
-                    .border_color(rgb(BORDER_SOFT))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .flex_1()
-                            .overflow_hidden()
-                            .child(
-                                div()
-                                    .w_full()
-                                    .text_sm()
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .text_color(rgb(TEXT))
-                                    .truncate()
-                                    .child(template.title.clone()),
-                            )
-                            .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(format!(
-                                "{} · {} · {}",
-                                template.domain, template.category, template.source
-                            ))),
-                    )
-                    .child(if custom {
-                        ghost_btn(
-                            SharedString::from(format!("edit-template-{}", template.id)),
-                            "Edit",
-                        )
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            this.open_template_form(Some(edit.clone()), window, cx);
-                        }))
-                        .into_any_element()
-                    } else {
-                        div().into_any_element()
-                    })
-                    .child(
-                        ghost_btn(
-                            SharedString::from(format!("use-template-{}", template.id)),
-                            "Use",
-                        )
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            let Some(engagement_id) = use_engagement.clone() else {
-                                this.error = Some("Select an engagement first.".into());
-                                cx.notify();
-                                return;
-                            };
-                            let template_id = use_id.clone();
-                            this.busy = true;
-                            let rx = this.backend.call(move |state| async move {
-                                services::test_cases::create_test_cases_from_templates(
-                                    state,
-                                    engagement_id,
-                                    vec![template_id],
-                                )
-                                .await
-                            });
-                            this.await_result(cx, rx, |this, result, _cx| {
-                                this.busy = false;
-                                match result {
-                                    Ok(cases) => {
-                                        this.notice = Some(format!(
-                                            "Added {} test(s) to the engagement.",
-                                            cases.len()
-                                        ))
-                                    }
-                                    Err(error) => this.set_error(error),
-                                }
-                            });
-                        })),
-                    )
-                    .child(if custom {
-                        ghost_btn(
-                            SharedString::from(format!("delete-template-{}", template.id)),
-                            "Delete",
-                        )
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.modal = Some(Modal::Confirm {
-                                title: "Delete template".into(),
-                                message: "Delete this custom template? This cannot be undone."
-                                    .into(),
-                                action: ConfirmAction::Template(delete_id.clone()),
-                            });
-                            cx.notify();
-                        }))
-                        .into_any_element()
-                    } else {
-                        div().into_any_element()
-                    }),
-            );
-        }
-        if filtered.is_empty() {
-            template_rows = template_rows.child(empty_state(
+        let template_rows = if filtered_indices.is_empty() {
+            empty_state(
                 "No templates",
                 "Create a custom template or import a bundle.",
-            ));
-        }
+            )
+        } else {
+            let indices = Rc::new(filtered_indices);
+            let sizes = Rc::new(vec![size(px(0.), px(60.)); indices.len()]);
+            div().h(px(480.)).child(v_virtual_list(
+                cx.entity(),
+                "template-list",
+                sizes,
+                move |this, range, _window, cx| {
+                    range
+                        .map(|index| this.template_row(indices[index], cx))
+                        .collect()
+                },
+            ))
+        };
         let mut bundle_rows = div().flex().flex_col();
         for bundle in &self.test_bundles {
             let apply_id = bundle.id.clone();
@@ -6071,136 +6098,165 @@ impl RootView {
         let _ = window;
     }
 
+    fn file_folder_row(&self, folder: &str) -> Div {
+        div()
+            .px_4()
+            .py_2()
+            .h(px(32.))
+            .bg(rgb(PANEL_ALT))
+            .text_xs()
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(rgb(TEXT_MUTED))
+            .truncate()
+            .child(if folder == "/" {
+                "Root".to_string()
+            } else {
+                folder.to_string()
+            })
+    }
+
+    fn file_row(&self, index: usize, cx: &mut Context<Self>) -> Div {
+        let file = &self.files[index];
+        let preview_id = file.id.clone();
+        let download_id = file.id.clone();
+        let delete_id = file.id.clone();
+        let filename = file.filename.clone();
+        div()
+            .flex()
+            .flex_wrap()
+            .w_full()
+            .items_center()
+            .gap_3()
+            .px_4()
+            .py_2()
+            .h(px(52.))
+            .border_b_1()
+            .border_color(rgb(BORDER_SOFT))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .flex_1()
+                    .overflow_hidden()
+                    .child(
+                        div()
+                            .w_full()
+                            .text_sm()
+                            .text_color(rgb(TEXT))
+                            .truncate()
+                            .child(file.relative_path.clone()),
+                    )
+                    .child(
+                        div()
+                            .w_full()
+                            .text_xs()
+                            .text_color(rgb(TEXT_DIM))
+                            .truncate()
+                            .child(format!("{} · {}", file.kind, fmt::bytes(file.size))),
+                    ),
+            )
+            .child(
+                ghost_btn(
+                    SharedString::from(format!("preview-file-{}", file.id)),
+                    "Preview",
+                )
+                .on_click(
+                    cx.listener(move |this, _, _, cx| {
+                        this.load_file_preview(preview_id.clone(), cx)
+                    }),
+                ),
+            )
+            .child(
+                ghost_btn(
+                    SharedString::from(format!("download-file-{}", file.id)),
+                    "Download",
+                )
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.download_file(download_id.clone(), filename.clone(), window, cx)
+                })),
+            )
+            .child(
+                ghost_btn(
+                    SharedString::from(format!("delete-file-{}", file.id)),
+                    "Delete",
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.modal = Some(Modal::Confirm {
+                        title: "Delete file".into(),
+                        message: "Delete this file? This cannot be undone.".into(),
+                        action: ConfirmAction::File(delete_id.clone()),
+                    });
+                    cx.notify();
+                })),
+            )
+    }
+
     fn render_files(&self, cx: &mut Context<Self>) -> Div {
         let search = input_value(&self.file_search, cx).to_lowercase();
-        let filtered: Vec<&EngagementFile> = self
-            .files
-            .iter()
-            .filter(|file| {
-                search.is_empty()
-                    || file.relative_path.to_lowercase().contains(&search)
-                    || file.filename.to_lowercase().contains(&search)
-            })
-            .collect();
-        let mut grouped: std::collections::BTreeMap<String, Vec<&EngagementFile>> =
+        let mut grouped: std::collections::BTreeMap<String, Vec<usize>> =
             std::collections::BTreeMap::new();
-        for file in filtered {
+        for (index, file) in self.files.iter().enumerate() {
+            if !search.is_empty()
+                && !file.relative_path.to_lowercase().contains(&search)
+                && !file.filename.to_lowercase().contains(&search)
+            {
+                continue;
+            }
             let folder = file
                 .relative_path
                 .rsplit_once('/')
                 .map(|(folder, _)| folder.to_string())
                 .unwrap_or_else(|| "/".into());
-            grouped.entry(folder).or_default().push(file);
+            grouped.entry(folder).or_default().push(index);
         }
-        let mut groups = div().flex().flex_col();
-        for (folder, files) in grouped {
-            let mut rows = div().flex().flex_col();
-            for file in files {
-                let preview_id = file.id.clone();
-                let download_id = file.id.clone();
-                let delete_id = file.id.clone();
-                let filename = file.filename.clone();
-                rows = rows.child(
-                    div()
-                        .flex()
-                        .flex_wrap()
-                        .w_full()
-                        .items_center()
-                        .gap_3()
-                        .px_4()
-                        .py_2()
-                        .border_b_1()
-                        .border_color(rgb(BORDER_SOFT))
-                        .child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap_1()
-                                .flex_1()
-                                .child(
-                                    div()
-                                        .text_sm()
-                                        .text_color(rgb(TEXT))
-                                        .child(file.relative_path.clone()),
-                                )
-                                .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(format!(
-                                    "{} · {}",
-                                    file.kind,
-                                    fmt::bytes(file.size)
-                                ))),
-                        )
-                        .child(
-                            ghost_btn(
-                                SharedString::from(format!("preview-file-{}", file.id)),
-                                "Preview",
-                            )
-                            .on_click(cx.listener(
-                                move |this, _, _, cx| {
-                                    this.load_file_preview(preview_id.clone(), cx)
-                                },
-                            )),
-                        )
-                        .child(
-                            ghost_btn(
-                                SharedString::from(format!("download-file-{}", file.id)),
-                                "Download",
-                            )
-                            .on_click(cx.listener(
-                                move |this, _, window, cx| {
-                                    this.download_file(
-                                        download_id.clone(),
-                                        filename.clone(),
-                                        window,
-                                        cx,
-                                    )
-                                },
-                            )),
-                        )
-                        .child(
-                            ghost_btn(
-                                SharedString::from(format!("delete-file-{}", file.id)),
-                                "Delete",
-                            )
-                            .on_click(cx.listener(
-                                move |this, _, _, cx| {
-                                    this.modal = Some(Modal::Confirm {
-                                        title: "Delete file".into(),
-                                        message: "Delete this file? This cannot be undone.".into(),
-                                        action: ConfirmAction::File(delete_id.clone()),
-                                    });
-                                    cx.notify();
-                                },
-                            )),
-                        ),
-                );
+
+        let mut list_rows: Vec<FileListRow> = Vec::new();
+        for (folder, indices) in grouped {
+            list_rows.push(FileListRow::Folder(folder));
+            for index in indices {
+                list_rows.push(FileListRow::File(index));
             }
-            groups = groups.child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .child(
-                        div()
-                            .px_4()
-                            .py_2()
-                            .bg(rgb(PANEL_ALT))
-                            .text_xs()
-                            .font_weight(FontWeight::MEDIUM)
-                            .text_color(rgb(TEXT_MUTED))
-                            .child(if folder == "/" {
-                                "Root".to_string()
-                            } else {
-                                folder
-                            }),
-                    )
-                    .child(rows),
-            );
         }
-        if self.files.is_empty() {
-            groups = groups.child(empty_state(
+
+        let groups = if self.files.is_empty() {
+            empty_state(
                 "No files",
                 "Add Postman collections, Burp exports, Procmon captures, logs, or other artifacts.",
-            ));
-        }
+            )
+        } else if list_rows.is_empty() {
+            empty_state("No matching files", "Try a different file name or path.")
+        } else {
+            let sizes = Rc::new(
+                list_rows
+                    .iter()
+                    .map(|row| {
+                        size(
+                            px(0.),
+                            match row {
+                                FileListRow::Folder(_) => px(32.),
+                                FileListRow::File(_) => px(52.),
+                            },
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            let list_rows = Rc::new(list_rows);
+            div().h(px(480.)).child(v_virtual_list(
+                cx.entity(),
+                "files-list",
+                sizes,
+                move |this, range, _window, cx| {
+                    range
+                        .map(|index| match &list_rows[index] {
+                            FileListRow::Folder(folder) => this.file_folder_row(folder),
+                            FileListRow::File(file_index) => this.file_row(*file_index, cx),
+                        })
+                        .collect()
+                },
+            ))
+        };
+
         panel()
             .overflow_hidden()
             .child(
