@@ -9,7 +9,7 @@ use gpui_kit::component::input::{InputState, TextareaState};
 use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::gpui::{
     AnyElement, AppContext as _, Context, Div, Entity, FontWeight, InteractiveElement as _,
-    IntoElement, MouseButton, ParentElement, Pixels, Render, SharedString,
+    IntoElement, KeyDownEvent, MouseButton, ParentElement, Pixels, Render, SharedString,
     StatefulInteractiveElement, Styled, Window, div, px, rgb, size,
 };
 use testtracker_core::ai::agent::{AgentPreviewDto, AgentProposalDto, AgentSkill};
@@ -10188,7 +10188,13 @@ impl Render for RootView {
                 cx.listener(|this, _, _, cx| this.touch(cx)),
             )
             .on_mouse_move(cx.listener(|this, _, _, cx| this.touch(cx)))
-            .on_key_down(cx.listener(|this, _, _, cx| this.touch(cx)))
+            .on_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+                if event.keystroke.key == "escape" && this.modal.is_some() {
+                    this.modal = None;
+                    cx.notify();
+                }
+                this.touch(cx);
+            }))
             .on_scroll(cx.listener(|this, _, _, cx| this.touch(cx)))
             .child(content);
         if let Some(modal) = self.render_modal(window, cx) {
