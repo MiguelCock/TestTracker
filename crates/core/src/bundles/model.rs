@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::documents::model::{DocumentFormat, DocumentKind};
-use crate::domain::models::{Assumption, Contact, Engagement, Finding, Risk, ScopeAsset, TestCase};
+use crate::domain::models::{Engagement, Finding, ScopeAsset, TestCase};
 
 pub const BUNDLE_SCHEMA: &str = "testtracker.engagement.v1";
 pub const BUNDLE_FORMAT: &str = "testtracker.bundle.v1";
@@ -39,9 +39,6 @@ pub struct BundleData {
     pub schema: String,
     pub engagement: Engagement,
     pub scope_assets: Vec<ScopeAsset>,
-    pub risks: Vec<Risk>,
-    pub assumptions: Vec<Assumption>,
-    pub contacts: Vec<Contact>,
     pub test_cases: Vec<TestCase>,
     pub findings: Vec<Finding>,
     #[serde(default)]

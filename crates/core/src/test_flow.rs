@@ -179,7 +179,6 @@ fn local_flow_persists_and_verifies() {
     assert_eq!(detail.test_case_count, 1);
     assert_eq!(detail.finding_count, 1);
     assert_eq!(detail.open_finding_count, 1);
-    assert!(detail.risks.is_empty());
 
     let evidence = Evidence {
         id: "evidence-1".into(),

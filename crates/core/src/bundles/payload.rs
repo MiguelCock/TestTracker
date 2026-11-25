@@ -60,9 +60,6 @@ pub fn validate_data(data: &BundleData) -> AppResult<()> {
         ));
     }
     if data.scope_assets.len() > 500
-        || data.risks.len() > 200
-        || data.assumptions.len() > 200
-        || data.contacts.len() > 100
         || data.test_cases.len() > 5_000
         || data.findings.len() > 1_000
         || data.files.len() > 500

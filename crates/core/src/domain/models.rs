@@ -156,9 +156,6 @@ pub struct EngagementSummary {
 pub struct EngagementDetail {
     pub engagement: Engagement,
     pub scope_assets: Vec<ScopeAsset>,
-    pub risks: Vec<Risk>,
-    pub assumptions: Vec<Assumption>,
-    pub contacts: Vec<Contact>,
     pub test_case_count: i64,
     pub finding_count: i64,
     pub open_finding_count: i64,

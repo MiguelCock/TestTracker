@@ -2,8 +2,7 @@ use rusqlite::{Connection, OptionalExtension};
 
 use crate::domain::enums::EngagementStatus;
 use crate::domain::models::{
-    Assumption, Contact, Engagement, EngagementDetail, EngagementInput, EngagementSummary, Risk,
-    ScopeAsset,
+    Engagement, EngagementDetail, EngagementInput, EngagementSummary, ScopeAsset,
 };
 use crate::error::{AppError, AppResult};
 
@@ -136,70 +135,11 @@ pub fn detail(conn: &Connection, id: &str) -> AppResult<EngagementDetail> {
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
 
-    let mut stmt = conn.prepare(
-        "SELECT id, title, description, likelihood, impact, severity, notes
-         FROM risks WHERE engagement_id = ?1 ORDER BY rowid",
-    )?;
-    let risks = stmt
-        .query_map([id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, u8>(3)?,
-                row.get::<_, u8>(4)?,
-                row.get::<_, String>(5)?,
-                row.get::<_, String>(6)?,
-            ))
-        })?
-        .map(|row| {
-            let (id, title, description, likelihood, impact, severity, notes) = row?;
-            Ok(Risk {
-                id,
-                title,
-                description,
-                likelihood,
-                impact,
-                severity: crate::domain::enums::Severity::from_db(&severity)?,
-                notes,
-            })
-        })
-        .collect::<AppResult<Vec<_>>>()?;
-
-    let mut stmt =
-        conn.prepare("SELECT id, text FROM assumptions WHERE engagement_id = ?1 ORDER BY rowid")?;
-    let assumptions = stmt
-        .query_map([id], |row| {
-            Ok(Assumption {
-                id: row.get(0)?,
-                text: row.get(1)?,
-            })
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-
-    let mut stmt = conn.prepare(
-        "SELECT id, name, role, email, phone FROM contacts WHERE engagement_id = ?1 ORDER BY rowid",
-    )?;
-    let contacts = stmt
-        .query_map([id], |row| {
-            Ok(Contact {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                role: row.get(2)?,
-                email: row.get(3)?,
-                phone: row.get(4)?,
-            })
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-
     let (test_case_count, finding_count, open_finding_count) = counts(conn, id)?;
 
     Ok(EngagementDetail {
         engagement,
         scope_assets,
-        risks,
-        assumptions,
-        contacts,
         test_case_count,
         finding_count,
         open_finding_count,
