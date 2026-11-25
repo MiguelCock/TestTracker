@@ -123,12 +123,14 @@ pub async fn list_audit_events(
     state: Arc<AppState>,
     engagement_id: Option<String>,
     limit: Option<i64>,
+    offset: Option<i64>,
 ) -> AppResult<Vec<AuditEvent>> {
     state.with_session(|session| {
         db::audit_repo::list(
             &session.conn,
             engagement_id.as_deref(),
             limit.unwrap_or(100),
+            offset.unwrap_or(0),
         )
     })
 }

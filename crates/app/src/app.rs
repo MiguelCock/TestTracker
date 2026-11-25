@@ -260,6 +260,8 @@ pub struct RootView {
     snapshots: Vec<SnapshotSummary>,
     approvals: Vec<Approval>,
     documents: Vec<GeneratedDocument>,
+    documents_loaded: bool,
+    loading_documents: bool,
     templates: Vec<TestCaseTemplate>,
     test_bundles: Vec<TestTemplateBundle>,
     selected_templates: Vec<String>,
@@ -275,6 +277,7 @@ pub struct RootView {
     agent_mode: AgentMode,
     loading_activity: bool,
     activity: Vec<AuditEvent>,
+    activity_has_more: bool,
     engagement_names: HashMap<String, String>,
     scope_editor_scope: Entity<TextareaState>,
     scope_editor_risks: Entity<TextareaState>,
@@ -512,6 +515,8 @@ impl RootView {
             snapshots: Vec::new(),
             approvals: Vec::new(),
             documents: Vec::new(),
+            documents_loaded: false,
+            loading_documents: false,
             templates: Vec::new(),
             test_bundles: Vec::new(),
             selected_templates: Vec::new(),
@@ -527,6 +532,7 @@ impl RootView {
             agent_mode: AgentMode::Plan,
             loading_activity: false,
             activity: Vec::new(),
+            activity_has_more: false,
             engagement_names: HashMap::new(),
             scope_editor_scope,
             scope_editor_risks,
@@ -757,8 +763,7 @@ impl RootView {
                 let audit = Vec::new();
                 let snapshots = Vec::new();
                 let approvals = Vec::new();
-                let documents =
-                    services::documents::list_documents(state.clone(), id.clone()).await?;
+                let documents = Vec::new();
                 let files =
                     services::files::list_engagement_files(state.clone(), id.clone()).await?;
                 let tool_permissions =
@@ -788,7 +793,7 @@ impl RootView {
                 })
             }
         });
-        self.await_result(cx, rx, |this, result, _cx| {
+        self.await_result(cx, rx, |this, result, cx| {
             this.loading_detail = false;
             match result {
                 Ok(bundle) => {
@@ -814,6 +819,7 @@ impl RootView {
                     this.snapshots = bundle.snapshots;
                     this.approvals = bundle.approvals;
                     this.documents = bundle.documents;
+                    this.documents_loaded = false;
                     this.templates = bundle.templates;
                     this.test_bundles = bundle.test_bundles;
                     this.selected_templates.clear();
@@ -844,6 +850,15 @@ impl RootView {
                     if focus_missing {
                         this.assistant_focus = AssistantFocus::engagement();
                     }
+                    if matches!(this.route, Route::Detail(_, DetailTab::Documents))
+                        && !this.documents_loaded
+                        && let Some(id) = this
+                            .detail
+                            .as_ref()
+                            .map(|detail| detail.engagement.id.clone())
+                    {
+                        this.load_documents(id, cx);
+                    }
                 }
                 Err(error) => this.set_error(error),
             }
@@ -863,7 +878,8 @@ impl RootView {
             Route::Engagements => self.load_engagements(cx),
             Route::Templates => self.load_templates(cx),
             Route::Activity => self.load_activity(cx),
-            Route::Detail(id, _) => {
+            Route::Detail(id, tab) => {
+                let documents_id = id.clone();
                 if !was_detail
                     || self
                         .detail
@@ -872,6 +888,9 @@ impl RootView {
                         != Some(&id)
                 {
                     self.load_detail(id, cx);
+                }
+                if tab == DetailTab::Documents && !self.documents_loaded {
+                    self.load_documents(documents_id, cx);
                 }
             }
             Route::Mcp => {
@@ -953,6 +972,11 @@ impl RootView {
                     this.snapshots.clear();
                     this.approvals.clear();
                     this.documents.clear();
+                    this.documents_loaded = false;
+                    this.loading_documents = false;
+                    this.activity.clear();
+                    this.activity_has_more = false;
+                    this.engagement_names.clear();
                     this.files.clear();
                     this.templates.clear();
                     this.test_bundles.clear();
@@ -1366,6 +1390,11 @@ impl RootView {
                             this.snapshots.clear();
                             this.approvals.clear();
                             this.documents.clear();
+                            this.documents_loaded = false;
+                            this.loading_documents = false;
+                            this.activity.clear();
+                            this.activity_has_more = false;
+                            this.engagement_names.clear();
                             this.files.clear();
                             this.templates.clear();
                             this.test_bundles.clear();
@@ -4331,6 +4360,9 @@ impl RootView {
     }
 
     fn render_documents(&self, cx: &mut Context<Self>) -> Div {
+        if !self.documents_loaded {
+            return loading("Loading documents…");
+        }
         let mut rows = div().flex().flex_col();
         for document in &self.documents {
             let id = document.id.clone();
@@ -4560,6 +4592,27 @@ impl RootView {
         });
     }
 
+    fn load_documents(&mut self, engagement_id: String, cx: &mut Context<Self>) {
+        if self.loading_documents {
+            return;
+        }
+        self.loading_documents = true;
+        self.error = None;
+        let rx = self.backend.call(move |state| async move {
+            services::documents::list_documents(state, engagement_id).await
+        });
+        self.await_result(cx, rx, |this, result, _cx| {
+            this.loading_documents = false;
+            match result {
+                Ok(documents) => {
+                    this.documents = documents;
+                    this.documents_loaded = true;
+                }
+                Err(error) => this.set_error(error),
+            }
+        });
+    }
+
     fn load_activity(&mut self, cx: &mut Context<Self>) {
         if self.loading_activity {
             return;
@@ -4568,7 +4621,8 @@ impl RootView {
         self.error = None;
         let rx = self.backend.call(|state| async move {
             let events =
-                services::engagements::list_audit_events(state.clone(), None, Some(1_000)).await?;
+                services::engagements::list_audit_events(state.clone(), None, Some(100), Some(0))
+                    .await?;
             let engagements = services::engagements::list_engagements(state).await?;
             Ok((events, engagements))
         });
@@ -4576,6 +4630,7 @@ impl RootView {
             this.loading_activity = false;
             match result {
                 Ok((events, engagements)) => {
+                    this.activity_has_more = events.len() == 100;
                     this.activity = events;
                     this.engagements = engagements;
                     this.engagement_names = this
@@ -4583,6 +4638,28 @@ impl RootView {
                         .iter()
                         .map(|engagement| (engagement.id.clone(), engagement.name.clone()))
                         .collect();
+                }
+                Err(error) => this.set_error(error),
+            }
+        });
+    }
+
+    fn load_more_activity(&mut self, cx: &mut Context<Self>) {
+        if self.loading_activity {
+            return;
+        }
+        self.loading_activity = true;
+        self.error = None;
+        let offset = self.activity.len() as i64;
+        let rx = self.backend.call(move |state| async move {
+            services::engagements::list_audit_events(state, None, Some(100), Some(offset)).await
+        });
+        self.await_result(cx, rx, |this, result, _cx| {
+            this.loading_activity = false;
+            match result {
+                Ok(mut events) => {
+                    this.activity_has_more = events.len() == 100;
+                    this.activity.append(&mut events);
                 }
                 Err(error) => this.set_error(error),
             }
@@ -5481,7 +5558,23 @@ impl RootView {
                             .border_b_1()
                             .border_color(rgb(BORDER))
                             .child(h3().child(format!("{} event(s)", self.activity.len())))
-                            .child(muted().child("Latest 500 events")),
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_wrap()
+                                    .items_center()
+                                    .gap_2()
+                                    .child(muted().child(format!("{} loaded", self.activity.len())))
+                                    .child(if self.activity_has_more {
+                                        ghost_btn("activity-load-more", "Load more")
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                this.load_more_activity(cx)
+                                            }))
+                                            .into_any_element()
+                                    } else {
+                                        muted().child("End of activity").into_any_element()
+                                    }),
+                            ),
                     )
                     .child(if self.activity.is_empty() {
                         empty_state(
@@ -7582,7 +7675,8 @@ impl RootView {
                                                 this.modal = None;
                                                 this.notice = Some("Document generated.".into());
                                                 if let Route::Detail(id, _) = &this.route {
-                                                    this.load_detail(id.clone(), cx);
+                                                    this.documents_loaded = false;
+                                                    this.load_documents(id.clone(), cx);
                                                 }
                                             }
                                             Err(error) => this.set_error(error),
