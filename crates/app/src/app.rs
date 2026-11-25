@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use gpui_kit::base::v_virtual_list;
 use gpui_kit::component::input::{InputState, TextareaState};
 use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::gpui::{
     AnyElement, AppContext as _, Context, Div, Entity, FontWeight, InteractiveElement as _,
     IntoElement, MouseButton, ParentElement, Pixels, Render, SharedString,
-    StatefulInteractiveElement, Styled, Window, div, px, rgb,
+    StatefulInteractiveElement, Styled, Window, div, px, rgb, size,
 };
 use testtracker_core::ai::agent::{AgentPreviewDto, AgentProposalDto, AgentSkill};
 use testtracker_core::ai::assistant::{
@@ -5334,59 +5336,71 @@ impl RootView {
             )
     }
 
-    fn render_activity(&self, cx: &mut Context<Self>) -> Div {
-        let mut rows = div().flex().flex_col();
-        for event in &self.activity {
-            let engagement_name = event
-                .engagement_id
-                .as_ref()
-                .and_then(|id| self.engagement_names.get(id))
-                .cloned()
-                .unwrap_or_else(|| "Vault".into());
-            let mut row = div()
-                .flex()
-                .items_center()
-                .gap_3()
-                .px_4()
-                .py_2()
-                .border_b_1()
-                .border_color(rgb(BORDER_SOFT))
-                .child(
-                    div()
-                        .w(px(52.))
-                        .text_xs()
-                        .text_color(rgb(TEXT_DIM))
-                        .child(event.seq.to_string()),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap_1()
-                        .flex_1()
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(rgb(TEXT))
-                                .child(event.action.clone()),
-                        )
-                        .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(format!(
-                            "{} · {} · {}",
-                            engagement_name,
-                            event.entity_type,
-                            fmt::date_time(&event.created_at)
-                        ))),
-                );
-            if !self.layout.narrow {
-                row = row.child(
-                    div()
-                        .text_xs()
-                        .text_color(rgb(TEXT_DIM))
-                        .child(event.hash.chars().take(12).collect::<String>()),
-                );
-            }
-            rows = rows.child(row);
+    fn activity_row(&self, index: usize, _cx: &mut Context<Self>) -> Div {
+        let event = &self.activity[index];
+        let engagement_name = event
+            .engagement_id
+            .as_ref()
+            .and_then(|id| self.engagement_names.get(id))
+            .cloned()
+            .unwrap_or_else(|| "Vault".into());
+        let mut row = div()
+            .flex()
+            .items_center()
+            .gap_3()
+            .px_4()
+            .py_2()
+            .h(px(52.))
+            .border_b_1()
+            .border_color(rgb(BORDER_SOFT))
+            .child(
+                div()
+                    .w(px(52.))
+                    .text_xs()
+                    .text_color(rgb(TEXT_DIM))
+                    .child(event.seq.to_string()),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .flex_1()
+                    .overflow_hidden()
+                    .child(
+                        div()
+                            .w_full()
+                            .text_xs()
+                            .text_color(rgb(TEXT))
+                            .truncate()
+                            .child(event.action.clone()),
+                    )
+                    .child(
+                        div()
+                            .w_full()
+                            .text_xs()
+                            .text_color(rgb(TEXT_DIM))
+                            .truncate()
+                            .child(format!(
+                                "{} · {} · {}",
+                                engagement_name,
+                                event.entity_type,
+                                fmt::date_time(&event.created_at)
+                            )),
+                    ),
+            );
+        if !self.layout.narrow {
+            row = row.child(
+                div()
+                    .text_xs()
+                    .text_color(rgb(TEXT_DIM))
+                    .child(event.hash.chars().take(12).collect::<String>()),
+            );
         }
+        row
+    }
+
+    fn render_activity(&self, cx: &mut Context<Self>) -> Div {
         div()
             .flex()
             .flex_col()
@@ -5447,8 +5461,20 @@ impl RootView {
                             "No activity yet",
                             "Mutations and AI decisions appear here as they happen.",
                         )
+                        .into_any_element()
                     } else {
-                        rows
+                        let sizes = Rc::new(vec![size(px(0.), px(52.)); self.activity.len()]);
+                        div()
+                            .h(px(480.))
+                            .child(v_virtual_list(
+                                cx.entity(),
+                                "activity-list",
+                                sizes,
+                                |this, range, _window, cx| {
+                                    range.map(|index| this.activity_row(index, cx)).collect()
+                                },
+                            ))
+                            .into_any_element()
                     }),
             )
     }
