@@ -2617,121 +2617,152 @@ impl RootView {
                 "Across engagements",
             ),
         ];
-        let mut content =
-            div()
-                .flex()
-                .flex_col()
-                .gap_6()
-                .child(page_header(
-                    self.layout.compact,
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap_1()
-                        .child(h1().child("Dashboard"))
-                        .child(muted().child("Your security testing workspace at a glance.")),
-                    div().flex().flex_wrap().items_center().gap_2().child(
-                        primary_btn("new-engagement", "+ New engagement").on_click(cx.listener(
-                            |this, _, window, cx| {
-                                this.open_engagement_form(window, cx, false);
-                            },
-                        )),
-                    ),
-                ))
-                .child(
-                    div()
-                        .grid()
-                        .grid_cols(self.layout.grid_columns(5, 3, 2))
-                        .gap_4()
-                        .children(stats.into_iter().map(|(label, value, hint)| {
-                            card()
-                                .flex()
-                                .flex_col()
-                                .gap_2()
-                                .child(field_label(label))
-                                .child(metric_value().child(value))
-                                .child(dim().child(hint))
-                        })),
-                )
-                .child(
-                    panel()
-                        .p_4()
-                        .flex()
-                        .flex_col()
-                        .gap_3()
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .justify_between()
-                                .child(h3().child("Findings by severity"))
-                                .child(muted().child(format!("{} open", metrics.open_findings))),
-                        )
-                        .child(
-                            div().flex().flex_wrap().gap_3().children(
-                                [
-                                    (
-                                        "Informational",
-                                        metrics.findings_by_severity.informational,
-                                        SEVERITY_INFO,
-                                    ),
-                                    ("Low", metrics.findings_by_severity.low, SEVERITY_LOW),
-                                    (
-                                        "Medium",
-                                        metrics.findings_by_severity.medium,
-                                        SEVERITY_MEDIUM,
-                                    ),
-                                    ("High", metrics.findings_by_severity.high, SEVERITY_HIGH),
-                                    (
-                                        "Critical",
-                                        metrics.findings_by_severity.critical,
-                                        SEVERITY_CRITICAL,
-                                    ),
-                                ]
-                                .into_iter()
-                                .map(|(label, count, color)| {
-                                    div()
-                                        .flex()
-                                        .flex_col()
-                                        .gap_1()
-                                        .p_3()
-                                        .rounded_md()
-                                        .bg(rgb(PANEL_ALT))
-                                        .border_1()
-                                        .border_color(rgb(BORDER_SOFT))
-                                        .child(div().text_xs().text_color(rgb(color)).child(label))
-                                        .child(
-                                            div()
-                                                .text_2xl()
-                                                .font_weight(FontWeight::SEMIBOLD)
-                                                .text_color(rgb(0xffffff))
-                                                .child(count.to_string()),
-                                        )
-                                }),
-                            ),
+        let mut content = div()
+            .flex()
+            .flex_col()
+            .gap_6()
+            .child(page_header(
+                self.layout.compact,
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(h1().child("Dashboard"))
+                    .child(muted().child("Your security testing workspace at a glance.")),
+                div().flex().flex_wrap().items_center().gap_2().child(
+                    primary_btn("new-engagement", "+ New engagement").on_click(cx.listener(
+                        |this, _, window, cx| {
+                            this.open_engagement_form(window, cx, false);
+                        },
+                    )),
+                ),
+            ))
+            .child(
+                div()
+                    .grid()
+                    .grid_cols(self.layout.grid_columns(5, 3, 2))
+                    .gap_4()
+                    .children(stats.into_iter().map(|(label, value, hint)| {
+                        card()
+                            .flex()
+                            .flex_col()
+                            .gap_2()
+                            .child(field_label(label))
+                            .child(metric_value().child(value))
+                            .child(dim().child(hint))
+                    })),
+            )
+            .child(
+                panel()
+                    .p_4()
+                    .flex()
+                    .flex_col()
+                    .gap_3()
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .child(h3().child("Findings by severity"))
+                            .child(muted().child(format!("{} open", metrics.open_findings))),
+                    )
+                    .child(
+                        div().flex().flex_wrap().gap_3().children(
+                            [
+                                (
+                                    "Informational",
+                                    metrics.findings_by_severity.informational,
+                                    SEVERITY_INFO,
+                                    Severity::Informational,
+                                ),
+                                (
+                                    "Low",
+                                    metrics.findings_by_severity.low,
+                                    SEVERITY_LOW,
+                                    Severity::Low,
+                                ),
+                                (
+                                    "Medium",
+                                    metrics.findings_by_severity.medium,
+                                    SEVERITY_MEDIUM,
+                                    Severity::Medium,
+                                ),
+                                (
+                                    "High",
+                                    metrics.findings_by_severity.high,
+                                    SEVERITY_HIGH,
+                                    Severity::High,
+                                ),
+                                (
+                                    "Critical",
+                                    metrics.findings_by_severity.critical,
+                                    SEVERITY_CRITICAL,
+                                    Severity::Critical,
+                                ),
+                            ]
+                            .into_iter()
+                            .map(|(label, count, color, severity)| {
+                                div()
+                                    .id(SharedString::from(format!("dashboard-severity-{label}")))
+                                    .flex()
+                                    .flex_col()
+                                    .gap_1()
+                                    .p_3()
+                                    .rounded_md()
+                                    .bg(rgb(PANEL_ALT))
+                                    .border_1()
+                                    .border_color(rgb(BORDER_SOFT))
+                                    .cursor_pointer()
+                                    .hover(|style| style.bg(rgb(PANEL)))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        let Some(engagement_id) = this
+                                            .engagements
+                                            .first()
+                                            .map(|engagement| engagement.id.clone())
+                                        else {
+                                            return;
+                                        };
+                                        this.severity_filter = Some(severity);
+                                        this.navigate(
+                                            Route::Detail(engagement_id, DetailTab::TestsFindings),
+                                            cx,
+                                        );
+                                    }))
+                                    .child(div().text_xs().text_color(rgb(color)).child(label))
+                                    .child(
+                                        div()
+                                            .text_2xl()
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .text_color(rgb(0xffffff))
+                                            .child(count.to_string()),
+                                    )
+                            }),
                         ),
-                )
-                .child(
-                    panel()
-                        .overflow_hidden()
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .justify_between()
-                                .px_5()
-                                .py_4()
-                                .border_b_1()
-                                .border_color(rgb(BORDER))
-                                .child(h3().child("Recent engagements"))
-                                .child(ghost_btn("all-engagements", "View all").on_click(
-                                    cx.listener(|this, _, _, cx| {
+                    ),
+            )
+            .child(
+                panel()
+                    .overflow_hidden()
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .px_5()
+                            .py_4()
+                            .border_b_1()
+                            .border_color(rgb(BORDER))
+                            .child(h3().child("Recent engagements"))
+                            .child(
+                                ghost_btn("all-engagements", "View all").on_click(cx.listener(
+                                    |this, _, _, cx| {
                                         this.navigate(Route::Engagements, cx);
-                                    }),
+                                    },
                                 )),
-                        )
-                        .child(self.render_engagement_rows(cx, 8)),
-                );
+                            ),
+                    )
+                    .child(self.render_engagement_rows(cx, 8)),
+            );
         if self.loading_dashboard {
             content = content.child(loading("Loading dashboard…"));
         }
@@ -2827,7 +2858,7 @@ impl RootView {
                     .child(h1().child("Engagements"))
                     .child(
                         muted().child(
-                            "Scope, execution, findings, review, and reporting in one place.",
+                            "Scope, execution, files, findings, and reporting in one place.",
                         ),
                     ),
                 div()
