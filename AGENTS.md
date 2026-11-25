@@ -148,7 +148,7 @@ Reading formats: `unzip -p file.xlsx xl/sharedStrings.xml`, `pdftotext -layout f
 - GPUI renders with Vulkan. If the window does not appear, check `vulkaninfo`; try
   `WAYLAND_DISPLAY=''` for X11. The old WebKit DMABUF workaround is gone.
 - `panic = "abort"` is set for release; a panic terminates the app. Test debug builds before release.
-- The app locks the vault after 15 minutes. Services enforce expiry on every call; the UI also runs a
+- The app locks the vault after 60 minutes. Services enforce expiry on every call; the UI also runs a
   15-second ticker and throttles `touch_session` to once per minute.
 
 ## Git

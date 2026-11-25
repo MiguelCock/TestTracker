@@ -16,7 +16,7 @@ use crate::mcp::runtime::McpRuntime;
 use crate::security::crypto::KEY_LEN;
 use crate::security::vault;
 
-pub const AUTO_LOCK_SECONDS: u64 = 15 * 60;
+pub const AUTO_LOCK_SECONDS: u64 = 60 * 60;
 
 pub struct UnlockedSession {
     pub(crate) conn: Connection,
@@ -318,5 +318,16 @@ impl AppState {
             }
         })?;
         action(session)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auto_lock_is_one_hour() {
+        assert_eq!(AUTO_LOCK_SECONDS, 60 * 60);
+        assert_eq!(AUTO_LOCK_SECONDS / 60, 60);
     }
 }

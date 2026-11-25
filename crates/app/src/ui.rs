@@ -185,6 +185,8 @@ pub fn empty_state(title: impl Into<SharedString>, description: impl Into<Shared
         .child(
             div()
                 .text_xs()
+                .text_center()
+                .max_w(px(520.))
                 .text_color(rgb(TEXT_MUTED))
                 .child(description.into()),
         )
@@ -244,6 +246,7 @@ pub fn modal_backdrop() -> Div {
 pub fn modal_card(width: f32) -> Div {
     div()
         .w(px(width))
+        .max_w_full()
         .max_h_full()
         .flex()
         .flex_col()

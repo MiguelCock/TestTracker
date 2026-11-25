@@ -33,7 +33,7 @@ fn main() {
                     title: Some("TestTracker".into()),
                     ..Default::default()
                 }),
-                window_min_size: Some(size(px(1024.), px(700.))),
+                window_min_size: Some(size(px(900.), px(600.))),
                 app_id: Some("com.testtracker.desktop".into()),
                 ..Default::default()
             };

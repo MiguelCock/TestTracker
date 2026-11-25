@@ -10,7 +10,7 @@ for E1, E2, E4, E8, and E9, and records which surfaces are current, transitional
 - One screen has one primary purpose and one primary action area.
 - Panels that duplicate another surface are removed, not hidden behind a second navigation path.
 - Every destructive action requires an explicit confirmation and is audited.
-- The minimum supported window is 1024×700. A screen that cannot fit must scroll inside one
+- The minimum supported window is 900×600. A screen that cannot fit must scroll inside one
   container, not trap the whole window.
 
 ## Global navigation
@@ -106,16 +106,16 @@ them; do not delete audit or bundle-signing infrastructure with them.
 
 | Modal / drawer | Used by | Size rule |
 | --- | --- | --- |
-| Engagement form | Engagements, Overview | Fits 1024×700; scrolls body |
-| Scope editor | Overview | Fits 1024×700; scrolls body |
+| Engagement form | Engagements, Overview | Fits 900×600; scrolls body |
+| Scope editor | Overview | Fits 900×600; scrolls body |
 | Test case form | Tests & Findings | Side drawer; body scrolls |
 | Finding form | Tests & Findings | Side drawer; body scrolls |
-| Add file / file preview | Files | Fits 1024×700; preview scrolls |
-| Generate document | Documents | Fits 1024×700 |
-| Template form / template picker | Templates, Tests | Fits 1024×700 |
-| Import assessment / import bundle / export bundle | Templates, Engagements | Fits 1024×700 |
-| Provider form | Settings → AI | Fits 1024×700 |
-| Publisher form / plugin result | Settings → Plugins | Fits 1024×700 |
+| Add file / file preview | Files | Fits 900×600; preview scrolls |
+| Generate document | Documents | Fits 900×600 |
+| Template form / template picker | Templates, Tests | Fits 900×600 |
+| Import assessment / import bundle / export bundle | Templates, Engagements | Fits 900×600 |
+| Provider form | Settings → AI | Fits 900×600 |
+| Publisher form / plugin result | Settings → Plugins | Fits 900×600 |
 | Agent proposal / preview | Agent | Side pane or drawer; changes list scrolls |
 | Confirmation dialog | All destructive actions | Short message, two actions |
 
@@ -145,4 +145,4 @@ them; do not delete audit or bundle-signing infrastructure with them.
 - E4: the unified screen exists; confirm linked/standalone findings, shared filters, and removal of
   the old Findings route.
 - E8: Settings → Activity exists; audit tab render code and large-history pagination remain.
-- E9: visual baseline and the 1024×700 pass are tracked in `docs/visual-baseline.md`.
+- E9: visual baseline and the 900×600 pass are tracked in `docs/visual-baseline.md`.

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 
+use crate::ai::model::{AiProviderInput, AiProviderKind};
 use crate::documents::model::{DocumentFormat, DocumentKind};
 use crate::domain::enums::{EngagementStatus, FindingStatus, RetestStatus, TestCaseStatus};
 use crate::domain::models::{EngagementInput, FindingInput, ScopeAssetInput, TestCaseInput};
@@ -49,6 +50,21 @@ fn seed_visual_fixture() {
         )
         .await
         .expect("initialize fixture vault");
+
+        services::ai::create_ai_provider(
+            state.clone(),
+            AiProviderInput {
+                name: "Synthetic Local".into(),
+                kind: AiProviderKind::Ollama,
+                base_url: "http://127.0.0.1:11434".into(),
+                model: "synthetic-model".into(),
+                supports_vision: false,
+                context_window: 8192,
+                api_key: None,
+            },
+        )
+        .await
+        .expect("fixture provider");
 
         let rich = services::engagements::create_engagement(
             state.clone(),

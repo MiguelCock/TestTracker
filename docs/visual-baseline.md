@@ -61,6 +61,28 @@ states, import dialogs, plugin dialogs, keyboard-only focus walkthrough, and 125
 
 No duplicate GPUI element-ID warnings appeared in the application log during this pass.
 
+## Batch 1 re-check
+
+Batch 1 added viewport metrics, responsive page headers, table/action wrapping, constrained modals, and
+an explicit main-content width. Re-checked at 900×600 on 2026-11-24:
+
+| Defect | Result |
+| --- | --- |
+| VB-001 header action clipping | Fixed; title ellipsizes and actions wrap below |
+| VB-002 page-level horizontal clipping | Fixed; main content width is bounded and pages reflow |
+| VB-004 Templates header clipping | Fixed; actions wrap |
+| VB-005 Settings grid clipping | Fixed; grid collapses to one column |
+| VB-006 Files action clipping | Fixed; header and row actions wrap |
+| VB-007 centered back link | Fixed; left-aligned with content |
+| VB-008 modal edge contact | Fixed; modal keeps a viewport margin and scrolls its body |
+| VB-011 long engagement title | Fixed with one-line ellipsis |
+| VB-003 duplicated Files path | Still open (E3 data-path contract) |
+| VB-009 stale engagement modal copy | Still open (E2 copy cleanup) |
+| VB-010 empty-date formatting | Still open (TT-115 state polish) |
+
+New evidence is stored under `qa-screenshots/` (ignored). TT-114 should confirm the same results at
+1024×700 and 1440×900 before closing.
+
 ## Notes for TT-114
 
 - VB-001 and VB-002 likely share one root cause: a fixed minimum width on the main content rather

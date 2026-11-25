@@ -5,9 +5,9 @@ use std::time::{Duration, Instant};
 use gpui_kit::component::input::{InputState, TextareaState};
 use gpui_kit::component::scroll::ScrollableElement as _;
 use gpui_kit::gpui::{
-    AppContext as _, Context, Div, Entity, FontWeight, InteractiveElement as _, IntoElement,
-    MouseButton, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Window,
-    div, px, rgb,
+    AnyElement, AppContext as _, Context, Div, Entity, FontWeight, InteractiveElement as _,
+    IntoElement, MouseButton, ParentElement, Pixels, Render, SharedString,
+    StatefulInteractiveElement, Styled, Window, div, px, rgb,
 };
 use testtracker_core::ai::agent::{AgentPreviewDto, AgentProposalDto, AgentSkill};
 use testtracker_core::ai::assistant::{
@@ -127,6 +127,7 @@ enum Modal {
     ExportBundle,
     ImportBundle,
     TemplatePicker,
+    FocusPicker,
     TemplateForm,
     ScopeEditor,
     Confirm {
@@ -161,10 +162,76 @@ struct DetailBundle {
     plugins: Vec<PluginSummary>,
 }
 
+#[derive(Clone, Copy, Default)]
+struct LayoutMetrics {
+    compact: bool,
+    narrow: bool,
+}
+
+impl LayoutMetrics {
+    fn from_width(width: Pixels) -> Self {
+        let width = f32::from(width);
+        Self {
+            compact: width < 1180.0,
+            narrow: width < 980.0,
+        }
+    }
+
+    fn sidebar_width(self) -> Pixels {
+        if self.narrow {
+            px(196.)
+        } else if self.compact {
+            px(220.)
+        } else {
+            px(256.)
+        }
+    }
+
+    fn page_padding(self) -> Pixels {
+        if self.narrow {
+            px(12.)
+        } else if self.compact {
+            px(16.)
+        } else {
+            px(24.)
+        }
+    }
+
+    fn grid_columns(self, regular: u16, compact: u16, narrow: u16) -> u16 {
+        if self.narrow {
+            narrow
+        } else if self.compact {
+            compact
+        } else {
+            regular
+        }
+    }
+}
+
+fn page_header(compact: bool, title: Div, actions: Div) -> Div {
+    if compact {
+        div()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .child(title.w_full())
+            .child(actions)
+    } else {
+        div()
+            .flex()
+            .items_start()
+            .justify_between()
+            .gap_4()
+            .child(title.flex_1())
+            .child(actions)
+    }
+}
+
 #[allow(dead_code)]
 pub struct RootView {
     backend: Arc<Backend>,
     session: Option<SessionInfo>,
+    layout: LayoutMetrics,
     vault_initialized: bool,
     route: Route,
     busy: bool,
@@ -262,6 +329,7 @@ pub struct RootView {
     passphrase: Entity<InputState>,
     display_name: Entity<InputState>,
     test_search: Entity<InputState>,
+    focus_search: Entity<InputState>,
     test_filter: Option<TestCaseStatus>,
     severity_filter: Option<Severity>,
     modal: Option<Modal>,
@@ -346,6 +414,8 @@ impl RootView {
         let display_name =
             cx.new(|cx| InputState::new(window, cx).placeholder("Your display name"));
         let test_search = cx.new(|cx| InputState::new(window, cx).placeholder("Search tests"));
+        let focus_search =
+            cx.new(|cx| InputState::new(window, cx).placeholder("Search tests and findings"));
         let eng_name = cx.new(|cx| InputState::new(window, cx).placeholder("Engagement name"));
         let eng_client = cx.new(|cx| InputState::new(window, cx).placeholder("Client code"));
         let eng_start = cx.new(|cx| InputState::new(window, cx).placeholder("YYYY-MM-DD"));
@@ -411,6 +481,7 @@ impl RootView {
             } else {
                 None
             },
+            layout: LayoutMetrics::default(),
             vault_initialized,
             route: Route::Dashboard,
             busy: false,
@@ -512,6 +583,7 @@ impl RootView {
             passphrase,
             display_name,
             test_search,
+            focus_search,
             test_filter: None,
             severity_filter: None,
             modal: None,
@@ -735,6 +807,22 @@ impl RootView {
                         this.assistant_provider =
                             this.providers.first().map(|provider| provider.id.clone());
                     }
+                    let focus_missing = match this.assistant_focus.kind {
+                        AssistantFocusKind::TestCase => this
+                            .assistant_focus
+                            .id
+                            .as_deref()
+                            .is_some_and(|id| !this.tests.iter().any(|case| case.id == id)),
+                        AssistantFocusKind::Finding => this
+                            .assistant_focus
+                            .id
+                            .as_deref()
+                            .is_some_and(|id| !this.findings.iter().any(|item| item.id == id)),
+                        _ => false,
+                    };
+                    if focus_missing {
+                        this.assistant_focus = AssistantFocus::engagement();
+                    }
                 }
                 Err(error) => this.set_error(error),
             }
@@ -807,6 +895,7 @@ impl RootView {
                     this.route = Route::Dashboard;
                     this.initial_load = true;
                     this.clear_passphrase = true;
+                    this.load_dashboard(cx);
                     if this.can_manage() {
                         this.migrate_evidence(cx);
                     }
@@ -2217,7 +2306,8 @@ impl RootView {
                         cx: &mut Context<Self>,
                         id: &'static str,
                         label: &'static str,
-                        route: Route| {
+                        route: Route,
+                        trailing: Option<AnyElement>| {
             let active = matches!(
                 (&route, &this.route),
                 (Route::Dashboard, Route::Dashboard)
@@ -2228,13 +2318,14 @@ impl RootView {
                     | (Route::Settings, Route::Settings)
                     | (Route::Settings, Route::Activity)
             );
-            div()
+            let mut item = div()
                 .id(id)
+                .w_full()
+                .h(px(36.))
                 .flex()
                 .items_center()
                 .gap_2()
                 .px_3()
-                .py_2()
                 .rounded_md()
                 .text_sm()
                 .cursor_pointer()
@@ -2245,14 +2336,17 @@ impl RootView {
                     rgb(TEXT_MUTED)
                 })
                 .hover(|style| style.bg(rgb(PANEL_ALT)).text_color(rgb(TEXT)))
-                .child(label)
-                .on_click(cx.listener(move |this, _, _, cx| {
-                    this.navigate(route.clone(), cx);
-                }))
+                .child(div().flex_1().child(label));
+            if let Some(trailing) = trailing {
+                item = item.child(trailing);
+            }
+            item.on_click(cx.listener(move |this, _, _, cx| {
+                this.navigate(route.clone(), cx);
+            }))
         };
 
         div()
-            .w(px(256.))
+            .w(self.layout.sidebar_width())
             .h_full()
             .flex()
             .flex_col()
@@ -2312,6 +2406,7 @@ impl RootView {
                         "nav-dashboard",
                         "Dashboard",
                         Route::Dashboard,
+                        None,
                     ))
                     .child(nav_item(
                         self,
@@ -2319,6 +2414,7 @@ impl RootView {
                         "nav-engagements",
                         "Engagements",
                         Route::Engagements,
+                        None,
                     ))
                     .child(nav_item(
                         self,
@@ -2326,42 +2422,44 @@ impl RootView {
                         "nav-templates",
                         "Templates",
                         Route::Templates,
+                        None,
                     ))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_1()
-                            .child(nav_item(self, cx, "nav-mcp", "MCP", Route::Mcp))
-                            .child(
-                                if self
-                                    .mcp
-                                    .as_ref()
-                                    .map(|status| status.pending_count)
-                                    .unwrap_or(0)
-                                    > 0
-                                {
-                                    badge(
-                                        self.mcp
-                                            .as_ref()
-                                            .map(|status| status.pending_count)
-                                            .unwrap_or(0)
-                                            .to_string(),
-                                        WARNING,
-                                        0x3b2f0b,
-                                    )
-                                    .into_any_element()
-                                } else {
-                                    div().into_any_element()
-                                },
-                            ),
-                    )
+                    .child(nav_item(
+                        self,
+                        cx,
+                        "nav-mcp",
+                        "MCP",
+                        Route::Mcp,
+                        Some(
+                            if self
+                                .mcp
+                                .as_ref()
+                                .map(|status| status.pending_count)
+                                .unwrap_or(0)
+                                > 0
+                            {
+                                badge(
+                                    self.mcp
+                                        .as_ref()
+                                        .map(|status| status.pending_count)
+                                        .unwrap_or(0)
+                                        .to_string(),
+                                    WARNING,
+                                    0x3b2f0b,
+                                )
+                                .into_any_element()
+                            } else {
+                                div().into_any_element()
+                            },
+                        ),
+                    ))
                     .child(nav_item(
                         self,
                         cx,
                         "nav-settings",
                         "Settings",
                         Route::Settings,
+                        None,
                     )),
             )
             .child(spacer())
@@ -2469,125 +2567,121 @@ impl RootView {
                 "Across engagements",
             ),
         ];
-        let mut content = div()
-            .flex()
-            .flex_col()
-            .gap_6()
-            .child(
-                div()
-                    .flex()
-                    .items_end()
-                    .justify_between()
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(h1().child("Dashboard"))
-                            .child(muted().child("Your security testing workspace at a glance.")),
-                    )
-                    .child(primary_btn("new-engagement", "+ New engagement").on_click(
-                        cx.listener(|this, _, window, cx| {
-                            this.open_engagement_form(window, cx, false);
-                        }),
-                    )),
-            )
-            .child(
-                div()
-                    .grid()
-                    .grid_cols(5)
-                    .gap_4()
-                    .children(stats.into_iter().map(|(label, value, hint)| {
-                        card()
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .child(field_label(label))
-                            .child(metric_value().child(value))
-                            .child(dim().child(hint))
-                    })),
-            )
-            .child(
-                panel()
-                    .p_4()
-                    .flex()
-                    .flex_col()
-                    .gap_3()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .child(h3().child("Findings by severity"))
-                            .child(muted().child(format!("{} open", metrics.open_findings))),
-                    )
-                    .child(
-                        div().flex().flex_wrap().gap_3().children(
-                            [
-                                (
-                                    "Informational",
-                                    metrics.findings_by_severity.informational,
-                                    SEVERITY_INFO,
-                                ),
-                                ("Low", metrics.findings_by_severity.low, SEVERITY_LOW),
-                                (
-                                    "Medium",
-                                    metrics.findings_by_severity.medium,
-                                    SEVERITY_MEDIUM,
-                                ),
-                                ("High", metrics.findings_by_severity.high, SEVERITY_HIGH),
-                                (
-                                    "Critical",
-                                    metrics.findings_by_severity.critical,
-                                    SEVERITY_CRITICAL,
-                                ),
-                            ]
-                            .into_iter()
-                            .map(|(label, count, color)| {
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_1()
-                                    .p_3()
-                                    .rounded_md()
-                                    .bg(rgb(PANEL_ALT))
-                                    .border_1()
-                                    .border_color(rgb(BORDER_SOFT))
-                                    .child(div().text_xs().text_color(rgb(color)).child(label))
-                                    .child(
-                                        div()
-                                            .text_2xl()
-                                            .font_weight(FontWeight::SEMIBOLD)
-                                            .text_color(rgb(0xffffff))
-                                            .child(count.to_string()),
-                                    )
-                            }),
-                        ),
+        let mut content =
+            div()
+                .flex()
+                .flex_col()
+                .gap_6()
+                .child(page_header(
+                    self.layout.compact,
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .child(h1().child("Dashboard"))
+                        .child(muted().child("Your security testing workspace at a glance.")),
+                    div().flex().flex_wrap().items_center().gap_2().child(
+                        primary_btn("new-engagement", "+ New engagement").on_click(cx.listener(
+                            |this, _, window, cx| {
+                                this.open_engagement_form(window, cx, false);
+                            },
+                        )),
                     ),
-            )
-            .child(
-                panel()
-                    .overflow_hidden()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .px_5()
-                            .py_4()
-                            .border_b_1()
-                            .border_color(rgb(BORDER))
-                            .child(h3().child("Recent engagements"))
-                            .child(
-                                ghost_btn("all-engagements", "View all").on_click(cx.listener(
-                                    |this, _, _, cx| {
-                                        this.navigate(Route::Engagements, cx);
-                                    },
-                                )),
+                ))
+                .child(
+                    div()
+                        .grid()
+                        .grid_cols(self.layout.grid_columns(5, 3, 2))
+                        .gap_4()
+                        .children(stats.into_iter().map(|(label, value, hint)| {
+                            card()
+                                .flex()
+                                .flex_col()
+                                .gap_2()
+                                .child(field_label(label))
+                                .child(metric_value().child(value))
+                                .child(dim().child(hint))
+                        })),
+                )
+                .child(
+                    panel()
+                        .p_4()
+                        .flex()
+                        .flex_col()
+                        .gap_3()
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .child(h3().child("Findings by severity"))
+                                .child(muted().child(format!("{} open", metrics.open_findings))),
+                        )
+                        .child(
+                            div().flex().flex_wrap().gap_3().children(
+                                [
+                                    (
+                                        "Informational",
+                                        metrics.findings_by_severity.informational,
+                                        SEVERITY_INFO,
+                                    ),
+                                    ("Low", metrics.findings_by_severity.low, SEVERITY_LOW),
+                                    (
+                                        "Medium",
+                                        metrics.findings_by_severity.medium,
+                                        SEVERITY_MEDIUM,
+                                    ),
+                                    ("High", metrics.findings_by_severity.high, SEVERITY_HIGH),
+                                    (
+                                        "Critical",
+                                        metrics.findings_by_severity.critical,
+                                        SEVERITY_CRITICAL,
+                                    ),
+                                ]
+                                .into_iter()
+                                .map(|(label, count, color)| {
+                                    div()
+                                        .flex()
+                                        .flex_col()
+                                        .gap_1()
+                                        .p_3()
+                                        .rounded_md()
+                                        .bg(rgb(PANEL_ALT))
+                                        .border_1()
+                                        .border_color(rgb(BORDER_SOFT))
+                                        .child(div().text_xs().text_color(rgb(color)).child(label))
+                                        .child(
+                                            div()
+                                                .text_2xl()
+                                                .font_weight(FontWeight::SEMIBOLD)
+                                                .text_color(rgb(0xffffff))
+                                                .child(count.to_string()),
+                                        )
+                                }),
                             ),
-                    )
-                    .child(self.render_engagement_rows(cx, 8)),
-            );
+                        ),
+                )
+                .child(
+                    panel()
+                        .overflow_hidden()
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .px_5()
+                                .py_4()
+                                .border_b_1()
+                                .border_color(rgb(BORDER))
+                                .child(h3().child("Recent engagements"))
+                                .child(ghost_btn("all-engagements", "View all").on_click(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.navigate(Route::Engagements, cx);
+                                    }),
+                                )),
+                        )
+                        .child(self.render_engagement_rows(cx, 8)),
+                );
         if self.loading_dashboard {
             content = content.child(loading("Loading dashboard…"));
         }
@@ -2606,49 +2700,51 @@ impl RootView {
         for engagement in self.engagements.iter().take(limit) {
             let id = engagement.id.clone();
             let (fg, bg) = status_tone(engagement.status);
-            rows = rows.child(
-                div()
-                    .id(SharedString::from(format!(
-                        "engagement-row-{}",
-                        engagement.id
-                    )))
-                    .flex()
-                    .items_center()
-                    .gap_4()
-                    .px_5()
-                    .py_4()
-                    .border_b_1()
-                    .border_color(rgb(BORDER_SOFT))
-                    .cursor_pointer()
-                    .hover(|style| style.bg(rgb(PANEL_ALT)))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.navigate(Route::Detail(id.clone(), DetailTab::Overview), cx);
-                    }))
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .flex_1()
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .text_color(rgb(TEXT))
-                                    .child(engagement.name.clone()),
-                            )
-                            .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(format!(
-                                "{} · {} – {}",
-                                if engagement.client_code.is_empty() {
-                                    "No client code"
-                                } else {
-                                    &engagement.client_code
-                                },
-                                fmt::date(&engagement.start_date),
-                                fmt::date(&engagement.end_date)
-                            ))),
-                    )
-                    .child(badge(fmt::engagement_status(engagement.status), fg, bg))
+            let mut row = div()
+                .id(SharedString::from(format!(
+                    "engagement-row-{}",
+                    engagement.id
+                )))
+                .flex()
+                .items_center()
+                .gap_4()
+                .px_5()
+                .py_4()
+                .border_b_1()
+                .border_color(rgb(BORDER_SOFT))
+                .cursor_pointer()
+                .hover(|style| style.bg(rgb(PANEL_ALT)))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.navigate(Route::Detail(id.clone(), DetailTab::Overview), cx);
+                }))
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .flex_1()
+                        .child(
+                            div()
+                                .text_sm()
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(rgb(TEXT))
+                                .truncate()
+                                .child(engagement.name.clone()),
+                        )
+                        .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(format!(
+                            "{} · {} – {}",
+                            if engagement.client_code.is_empty() {
+                                "No client code"
+                            } else {
+                                &engagement.client_code
+                            },
+                            fmt::date(&engagement.start_date),
+                            fmt::date(&engagement.end_date)
+                        ))),
+                )
+                .child(badge(fmt::engagement_status(engagement.status), fg, bg));
+            if !self.layout.narrow {
+                row = row
                     .child(
                         div()
                             .text_xs()
@@ -2660,8 +2756,9 @@ impl RootView {
                             .text_xs()
                             .text_color(rgb(TEXT_MUTED))
                             .child(format!("{} open", engagement.open_finding_count)),
-                    ),
-            );
+                    );
+            }
+            rows = rows.child(row);
         }
         rows
     }
@@ -2671,48 +2768,45 @@ impl RootView {
             .flex()
             .flex_col()
             .gap_6()
-            .child(
+            .child(page_header(
+                self.layout.compact,
                 div()
                     .flex()
-                    .items_end()
-                    .justify_between()
+                    .flex_col()
+                    .gap_1()
+                    .child(h1().child("Engagements"))
                     .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(h1().child("Engagements"))
-                            .child(muted().child(
-                                "Scope, execution, findings, review, and reporting in one place.",
-                            )),
+                        muted().child(
+                            "Scope, execution, findings, review, and reporting in one place.",
+                        ),
+                    ),
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        ghost_btn("import-assessment", "Import assessment").on_click(
+                            cx.listener(|this, _, _, cx| this.start_import_assessment(cx)),
+                        ),
                     )
                     .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                ghost_btn("import-assessment", "Import assessment").on_click(
-                                    cx.listener(|this, _, _, cx| this.start_import_assessment(cx)),
-                                ),
-                            )
-                            .child(ghost_btn("import-bundle", "Import bundle").on_click(
-                                cx.listener(|this, _, _, cx| this.start_import_bundle(cx)),
-                            ))
-                            .child(
-                                primary_btn("new-engagement-list", "+ New engagement").on_click(
-                                    cx.listener(|this, _, window, cx| {
-                                        this.open_engagement_form(window, cx, false);
-                                    }),
-                                ),
-                            ),
+                        ghost_btn("import-bundle", "Import bundle")
+                            .on_click(cx.listener(|this, _, _, cx| this.start_import_bundle(cx))),
+                    )
+                    .child(
+                        primary_btn("new-engagement-list", "+ New engagement").on_click(
+                            cx.listener(|this, _, window, cx| {
+                                this.open_engagement_form(window, cx, false);
+                            }),
+                        ),
                     ),
-            )
+            ))
             .child(
                 panel()
                     .overflow_hidden()
-                    .child(
-                        div()
+                    .child({
+                        let mut header = div()
                             .flex()
                             .items_center()
                             .gap_3()
@@ -2723,10 +2817,14 @@ impl RootView {
                             .text_xs()
                             .text_color(rgb(TEXT_DIM))
                             .child(div().flex_1().child("Engagement"))
-                            .child(div().w(px(110.)).child("Status"))
-                            .child(div().w(px(80.)).child("Tests"))
-                            .child(div().w(px(80.)).child("Findings")),
-                    )
+                            .child(div().w(px(110.)).child("Status"));
+                        if !self.layout.narrow {
+                            header = header
+                                .child(div().w(px(80.)).child("Tests"))
+                                .child(div().w(px(80.)).child("Findings"));
+                        }
+                        header
+                    })
                     .child(self.render_engagement_rows(cx, usize::MAX)),
             )
     }
@@ -2788,61 +2886,63 @@ impl RootView {
             .flex_col()
             .gap_5()
             .child(
-                ghost_btn("back-engagements", "← All engagements")
-                    .on_click(cx.listener(|this, _, _, cx| this.navigate(Route::Engagements, cx))),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_start()
-                    .justify_between()
-                    .gap_4()
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_2()
-                            .child(h1().child(engagement.name.clone()))
-                            .child(muted().child(format!(
-                                "{} · created {}",
-                                if engagement.client_code.is_empty() {
-                                    "No client code"
-                                } else {
-                                    &engagement.client_code
-                                },
-                                fmt::date_time(&engagement.created_at)
-                            ))),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(badge(fmt::engagement_status(engagement.status), fg, bg))
-                            .child(ghost_btn("export-bundle", "Export bundle").on_click(
-                                cx.listener(|this, _, _, cx| this.start_export_bundle(cx)),
-                            ))
-                            .child(ghost_btn("edit-engagement", "Edit").on_click(cx.listener(
-                                |this, _, window, cx| {
-                                    this.open_engagement_form(window, cx, true);
-                                },
-                            )))
-                            .child(danger_btn("delete-engagement", "Delete").on_click(
-                                cx.listener(|this, _, _, cx| {
-                                    if let Some(detail) = &this.detail {
-                                        this.modal = Some(Modal::ConfirmDeleteEngagement {
-                                            id: detail.engagement.id.clone(),
-                                            name: detail.engagement.name.clone(),
-                                        });
-                                        cx.notify();
-                                    }
-                                }),
-                            )),
+                div().flex().justify_start().child(
+                    ghost_btn("back-engagements", "← All engagements").on_click(
+                        cx.listener(|this, _, _, cx| this.navigate(Route::Engagements, cx)),
                     ),
+                ),
             )
+            .child(page_header(
+                self.layout.compact,
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .w_full()
+                    .overflow_hidden()
+                    .child(h1().w_full().truncate().child(engagement.name.clone()))
+                    .child(muted().child(format!(
+                        "{} · created {}",
+                        if engagement.client_code.is_empty() {
+                            "No client code"
+                        } else {
+                            &engagement.client_code
+                        },
+                        fmt::date_time(&engagement.created_at)
+                    ))),
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .items_center()
+                    .gap_2()
+                    .child(badge(fmt::engagement_status(engagement.status), fg, bg))
+                    .child(
+                        ghost_btn("export-bundle", "Export bundle")
+                            .on_click(cx.listener(|this, _, _, cx| this.start_export_bundle(cx))),
+                    )
+                    .child(ghost_btn("edit-engagement", "Edit").on_click(cx.listener(
+                        |this, _, window, cx| {
+                            this.open_engagement_form(window, cx, true);
+                        },
+                    )))
+                    .child(
+                        danger_btn("delete-engagement", "Delete").on_click(cx.listener(
+                            |this, _, _, cx| {
+                                if let Some(detail) = &this.detail {
+                                    this.modal = Some(Modal::ConfirmDeleteEngagement {
+                                        id: detail.engagement.id.clone(),
+                                        name: detail.engagement.name.clone(),
+                                    });
+                                    cx.notify();
+                                }
+                            },
+                        )),
+                    ),
+            ))
             .child(
                 div()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .gap_4()
                     .child(div().text_xs().text_color(rgb(TEXT_MUTED)).child(format!(
@@ -2989,6 +3089,7 @@ impl RootView {
         let provider_rows =
             div()
                 .flex()
+                .flex_wrap()
                 .items_center()
                 .gap_2()
                 .children(self.providers.iter().map(|provider| {
@@ -3004,7 +3105,7 @@ impl RootView {
                         cx.notify();
                     }))
                 }));
-        let policy_rows = div().flex().items_center().gap_2().children(
+        let policy_rows = div().flex().flex_wrap().items_center().gap_2().children(
             [AiPolicy::Off, AiPolicy::LocalOnly, AiPolicy::ApprovedCloud]
                 .into_iter()
                 .map(|item| {
@@ -3021,58 +3122,41 @@ impl RootView {
                     }))
                 }),
         );
-        let focus_row = {
-            let mut row = div().flex().items_center().gap_2().child(
-                pill(
-                    "assistant-focus-engagement",
-                    "Engagement",
-                    self.assistant_focus.kind == AssistantFocusKind::Engagement,
-                )
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.assistant_focus = AssistantFocus::engagement();
-                    cx.notify();
-                })),
-            );
-            for case in self.tests.iter().take(8) {
-                let id = case.id.clone();
-                let selected = self.assistant_focus.kind == AssistantFocusKind::TestCase
-                    && self.assistant_focus.id.as_deref() == Some(id.as_str());
-                row = row.child(
-                    pill(
-                        SharedString::from(format!("assistant-focus-test-{}", case.id)),
-                        format!("Test: {}", case.title.chars().take(28).collect::<String>()),
-                        selected,
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.assistant_focus = AssistantFocus {
-                            kind: AssistantFocusKind::TestCase,
-                            id: Some(id.clone()),
-                        };
-                        cx.notify();
-                    })),
-                );
-            }
-            for finding in self.findings.iter().take(8) {
-                let id = finding.id.clone();
-                let selected = self.assistant_focus.kind == AssistantFocusKind::Finding
-                    && self.assistant_focus.id.as_deref() == Some(id.as_str());
-                row = row.child(
-                    pill(
-                        SharedString::from(format!("assistant-focus-finding-{}", finding.id)),
-                        format!("Finding: {}", finding.code),
-                        selected,
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.assistant_focus = AssistantFocus {
-                            kind: AssistantFocusKind::Finding,
-                            id: Some(id.clone()),
-                        };
-                        cx.notify();
-                    })),
-                );
-            }
-            row
+        let focus_label = match self.assistant_focus.kind {
+            AssistantFocusKind::Engagement => "Engagement".to_string(),
+            AssistantFocusKind::TestCase => self
+                .assistant_focus
+                .id
+                .as_deref()
+                .and_then(|id| self.tests.iter().find(|case| case.id == id))
+                .map(|case| format!("Test: {}", case.title.chars().take(40).collect::<String>()))
+                .unwrap_or_else(|| "Test".into()),
+            AssistantFocusKind::Finding => self
+                .assistant_focus
+                .id
+                .as_deref()
+                .and_then(|id| self.findings.iter().find(|finding| finding.id == id))
+                .map(|finding| format!("Finding: {}", finding.code))
+                .unwrap_or_else(|| "Finding".into()),
+            AssistantFocusKind::Evidence => "Evidence".into(),
         };
+        let focus_row = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap_2()
+            .child(pill("agent-current-focus", focus_label, true))
+            .child(
+                ghost_btn("change-agent-focus", "Change focus").on_click(cx.listener(
+                    |this, _, window, cx| {
+                        this.focus_search.update(cx, |state, cx| {
+                            state.set_value("", window, cx);
+                        });
+                        this.modal = Some(Modal::FocusPicker);
+                        cx.notify();
+                    },
+                )),
+            );
         let mut history = div().flex().flex_col().gap_3();
         if self.assistant_history.is_empty() {
             history = history.child(empty_state(
@@ -3316,7 +3400,7 @@ impl RootView {
             .child(
                 div()
                     .grid()
-                    .grid_cols(2)
+                    .grid_cols(self.layout.grid_columns(2, 1, 1))
                     .gap_4()
                     .child(
                         div()
@@ -4234,6 +4318,8 @@ impl RootView {
             rows = rows.child(
                 div()
                     .flex()
+                    .flex_wrap()
+                    .w_full()
                     .items_center()
                     .gap_3()
                     .px_4()
@@ -4246,11 +4332,14 @@ impl RootView {
                             .flex_col()
                             .gap_1()
                             .flex_1()
+                            .overflow_hidden()
                             .child(
                                 div()
+                                    .w_full()
                                     .text_sm()
                                     .font_weight(FontWeight::MEDIUM)
                                     .text_color(rgb(TEXT))
+                                    .truncate()
                                     .child(document.title.clone()),
                             )
                             .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(format!(
@@ -4302,8 +4391,10 @@ impl RootView {
             .child(
                 div()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .justify_between()
+                    .gap_3()
                     .p_4()
                     .border_b_1()
                     .border_color(rgb(BORDER))
@@ -4942,6 +5033,8 @@ impl RootView {
             template_rows = template_rows.child(
                 div()
                     .flex()
+                    .flex_wrap()
+                    .w_full()
                     .items_center()
                     .gap_3()
                     .px_4()
@@ -4954,11 +5047,14 @@ impl RootView {
                             .flex_col()
                             .gap_1()
                             .flex_1()
+                            .overflow_hidden()
                             .child(
                                 div()
+                                    .w_full()
                                     .text_sm()
                                     .font_weight(FontWeight::MEDIUM)
                                     .text_color(rgb(TEXT))
+                                    .truncate()
                                     .child(template.title.clone()),
                             )
                             .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(format!(
@@ -5150,47 +5246,43 @@ impl RootView {
             .flex()
             .flex_col()
             .gap_4()
-            .child(
+            .child(page_header(
+                self.layout.compact,
                 div()
                     .flex()
-                    .items_center()
-                    .justify_between()
+                    .flex_col()
+                    .gap_1()
+                    .child(h1().child("Templates"))
                     .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(h1().child("Templates"))
-                            .child(muted().child(
-                                "Reusable test templates and bundles for every engagement.",
-                            )),
+                        muted().child("Reusable test templates and bundles for every engagement."),
+                    ),
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        ghost_btn("import-template-bundle", "Import bundle").on_click(
+                            cx.listener(|this, _, _, cx| this.import_template_bundle(cx)),
+                        ),
                     )
                     .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(
-                                ghost_btn("import-template-bundle", "Import bundle").on_click(
-                                    cx.listener(|this, _, _, cx| this.import_template_bundle(cx)),
-                                ),
-                            )
-                            .child(primary_btn("new-template", "+ Template").on_click(
-                                cx.listener(|this, _, window, cx| {
-                                    this.open_template_form(None, window, cx)
-                                }),
-                            )),
+                        primary_btn("new-template", "+ Template").on_click(cx.listener(
+                            |this, _, window, cx| this.open_template_form(None, window, cx),
+                        )),
                     ),
-            )
+            ))
             .child(
                 panel().p_4().flex().flex_col().gap_3().child(
                     div()
                         .flex()
+                        .flex_wrap()
                         .items_center()
                         .gap_3()
                         .child(
                             div()
-                                .w(px(280.))
+                                .w_full()
+                                .max_w(px(280.))
                                 .child(text_input(&self.test_search, "Search templates")),
                         )
                         .child(muted().child("Use target:"))
@@ -5236,95 +5328,91 @@ impl RootView {
                         .map(|engagement| engagement.name.clone())
                 })
                 .unwrap_or_else(|| "Vault".into());
-            rows = rows.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_3()
-                    .px_4()
-                    .py_2()
-                    .border_b_1()
-                    .border_color(rgb(BORDER_SOFT))
-                    .child(
-                        div()
-                            .w(px(52.))
-                            .text_xs()
-                            .text_color(rgb(TEXT_DIM))
-                            .child(event.seq.to_string()),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .flex_1()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(rgb(TEXT))
-                                    .child(event.action.clone()),
-                            )
-                            .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(format!(
-                                "{} · {} · {}",
-                                engagement_name,
-                                event.entity_type,
-                                fmt::date_time(&event.created_at)
-                            ))),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(rgb(TEXT_DIM))
-                            .child(event.hash.chars().take(12).collect::<String>()),
-                    ),
-            );
+            let mut row = div()
+                .flex()
+                .items_center()
+                .gap_3()
+                .px_4()
+                .py_2()
+                .border_b_1()
+                .border_color(rgb(BORDER_SOFT))
+                .child(
+                    div()
+                        .w(px(52.))
+                        .text_xs()
+                        .text_color(rgb(TEXT_DIM))
+                        .child(event.seq.to_string()),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .flex_1()
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(rgb(TEXT))
+                                .child(event.action.clone()),
+                        )
+                        .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(format!(
+                            "{} · {} · {}",
+                            engagement_name,
+                            event.entity_type,
+                            fmt::date_time(&event.created_at)
+                        ))),
+                );
+            if !self.layout.narrow {
+                row = row.child(
+                    div()
+                        .text_xs()
+                        .text_color(rgb(TEXT_DIM))
+                        .child(event.hash.chars().take(12).collect::<String>()),
+                );
+            }
+            rows = rows.child(row);
         }
         div()
             .flex()
             .flex_col()
             .gap_4()
-            .child(
+            .child(page_header(
+                self.layout.compact,
                 div()
                     .flex()
-                    .items_center()
-                    .justify_between()
+                    .flex_col()
+                    .gap_1()
+                    .child(h1().child("Activity"))
                     .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(h1().child("Activity"))
-                            .child(muted().child(
-                                "Append-only, hash-chained vault activity and verification.",
-                            )),
+                        muted().child("Append-only, hash-chained vault activity and verification."),
+                    ),
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        ghost_btn("activity-settings", "Back to settings").on_click(
+                            cx.listener(|this, _, _, cx| this.navigate(Route::Settings, cx)),
+                        ),
                     )
                     .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(ghost_btn("activity-settings", "Back to settings").on_click(
-                                cx.listener(|this, _, _, cx| this.navigate(Route::Settings, cx)),
-                            ))
-                            .child(ghost_btn("activity-verify", "Verify chain").on_click(
-                                cx.listener(|this, _, _, cx| {
-                                    let rx = this.backend.call(|state| async move {
-                                        services::engagements::verify_audit_chain(state).await
-                                    });
-                                    this.await_result(cx, rx, |this, result, _cx| match result {
-                                        Ok(true) => {
-                                            this.notice = Some("Audit chain verified.".into())
-                                        }
-                                        Ok(false) => {
-                                            this.error =
-                                                Some("Audit chain verification failed.".into())
-                                        }
-                                        Err(error) => this.set_error(error),
-                                    });
-                                }),
-                            )),
+                        ghost_btn("activity-verify", "Verify chain").on_click(cx.listener(
+                            |this, _, _, cx| {
+                                let rx = this.backend.call(|state| async move {
+                                    services::engagements::verify_audit_chain(state).await
+                                });
+                                this.await_result(cx, rx, |this, result, _cx| match result {
+                                    Ok(true) => this.notice = Some("Audit chain verified.".into()),
+                                    Ok(false) => {
+                                        this.error = Some("Audit chain verification failed.".into())
+                                    }
+                                    Err(error) => this.set_error(error),
+                                });
+                            },
+                        )),
                     ),
-            )
+            ))
             .child(
                 panel()
                     .overflow_hidden()
@@ -5337,7 +5425,7 @@ impl RootView {
                             .border_b_1()
                             .border_color(rgb(BORDER))
                             .child(h3().child(format!("{} event(s)", self.activity.len())))
-                            .child(muted().child("Latest 1,000 events")),
+                            .child(muted().child("Latest 500 events")),
                     )
                     .child(if self.activity.is_empty() {
                         empty_state(
@@ -5397,6 +5485,8 @@ impl RootView {
                 .child(
                     div()
                         .flex()
+                        .flex_wrap()
+                        .w_full()
                         .items_center()
                         .gap_3()
                         .px_4()
@@ -5407,11 +5497,14 @@ impl RootView {
                                 .flex_col()
                                 .gap_1()
                                 .flex_1()
+                                .overflow_hidden()
                                 .child(
                                     div()
+                                        .w_full()
                                         .text_sm()
                                         .font_weight(FontWeight::MEDIUM)
                                         .text_color(rgb(TEXT))
+                                        .truncate()
                                         .child(case.title.clone()),
                                 )
                                 .child(div().text_xs().text_color(rgb(TEXT_DIM)).child(
@@ -5718,7 +5811,8 @@ impl RootView {
             .gap_2()
             .child(
                 div()
-                    .w(px(260.))
+                    .w_full()
+                    .max_w(px(260.))
                     .child(text_input(&self.test_search, "Search tests/findings")),
             )
             .child(
@@ -5965,6 +6059,8 @@ impl RootView {
                 rows = rows.child(
                     div()
                         .flex()
+                        .flex_wrap()
+                        .w_full()
                         .items_center()
                         .gap_3()
                         .px_4()
@@ -6066,8 +6162,10 @@ impl RootView {
             .child(
                 div()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .justify_between()
+                    .gap_3()
                     .p_4()
                     .border_b_1()
                     .border_color(rgb(BORDER))
@@ -6085,11 +6183,13 @@ impl RootView {
                     .child(
                         div()
                             .flex()
+                            .flex_wrap()
                             .items_center()
                             .gap_2()
                             .child(
                                 div()
-                                    .w(px(220.))
+                                    .w_full()
+                                    .max_w(px(220.))
                                     .child(text_input(&self.file_search, "Search files")),
                             )
                             .child(primary_btn("add-file", "+ Add file").on_click(cx.listener(
@@ -6416,7 +6516,7 @@ impl RootView {
             .child(
                 div()
                     .grid()
-                    .grid_cols(2)
+                    .grid_cols(self.layout.grid_columns(2, 1, 1))
                     .gap_4()
                     .child(
                         panel()
@@ -6811,6 +6911,7 @@ impl RootView {
                     .child(
                         div()
                             .flex()
+                            .flex_wrap()
                             .items_center()
                             .gap_3()
                             .child(badge(
@@ -6818,8 +6919,14 @@ impl RootView {
                                 if running { 0x6ee7b7 } else { TEXT_MUTED },
                                 if running { 0x052e2b } else { 0x1e293b },
                             ))
-                            .child(div().text_sm().text_color(rgb(TEXT)).child(endpoint.clone()))
-                            .child(spacer())
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .truncate()
+                                    .text_sm()
+                                    .text_color(rgb(TEXT))
+                                    .child(endpoint.clone()),
+                            )
                             .child(if running {
                                 danger_btn("mcp-stop", "Stop bridge").on_click(cx.listener(
                                     |this, _, _, cx| {
@@ -6952,6 +7059,8 @@ impl RootView {
                             .p_3()
                             .rounded_md()
                             .bg(rgb(BG))
+                            .overflow_x_scrollbar()
+                            .whitespace_nowrap()
                             .text_xs()
                             .text_color(rgb(TEXT_MUTED))
                             .child(format!(
@@ -7937,6 +8046,208 @@ impl RootView {
                             .on_click(cx.listener(|this, _, _, cx| this.save_template(cx)))
                             .into_any_element(),
                     ]));
+                Some(self.wrap_modal(card, window, cx))
+            }
+            Modal::FocusPicker => {
+                let query = input_value(&self.focus_search, cx).to_lowercase();
+                let mut rows = div()
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .max_h(px(420.))
+                    .overflow_y_scrollbar();
+
+                let engagement_selected =
+                    self.assistant_focus.kind == AssistantFocusKind::Engagement;
+                rows = rows.child(
+                    div()
+                        .id("focus-picker-engagement")
+                        .flex()
+                        .items_center()
+                        .gap_3()
+                        .px_3()
+                        .py_2()
+                        .rounded_md()
+                        .bg(if engagement_selected {
+                            rgb(0x052e2b)
+                        } else {
+                            rgb(PANEL_ALT)
+                        })
+                        .border_1()
+                        .border_color(if engagement_selected {
+                            rgb(0x065f46)
+                        } else {
+                            rgb(BORDER_SOFT)
+                        })
+                        .cursor_pointer()
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.assistant_focus = AssistantFocus::engagement();
+                            this.modal = None;
+                            cx.notify();
+                        }))
+                        .child(
+                            div()
+                                .text_sm()
+                                .text_color(rgb(TEXT))
+                                .child("Engagement context"),
+                        ),
+                );
+
+                let mut test_count = 0usize;
+                for case in &self.tests {
+                    if !query.is_empty() && !case.title.to_lowercase().contains(&query) {
+                        continue;
+                    }
+                    if test_count >= 40 {
+                        break;
+                    }
+                    test_count += 1;
+                    let id = case.id.clone();
+                    let selected = self.assistant_focus.kind == AssistantFocusKind::TestCase
+                        && self.assistant_focus.id.as_deref() == Some(id.as_str());
+                    rows = rows.child(
+                        div()
+                            .id(SharedString::from(format!("focus-test-{}", case.id)))
+                            .flex()
+                            .items_center()
+                            .gap_3()
+                            .px_3()
+                            .py_2()
+                            .rounded_md()
+                            .bg(if selected {
+                                rgb(0x052e2b)
+                            } else {
+                                rgb(PANEL_ALT)
+                            })
+                            .border_1()
+                            .border_color(if selected {
+                                rgb(0x065f46)
+                            } else {
+                                rgb(BORDER_SOFT)
+                            })
+                            .cursor_pointer()
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.assistant_focus = AssistantFocus {
+                                    kind: AssistantFocusKind::TestCase,
+                                    id: Some(id.clone()),
+                                };
+                                this.modal = None;
+                                cx.notify();
+                            }))
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap_1()
+                                    .flex_1()
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_weight(FontWeight::MEDIUM)
+                                            .text_color(rgb(TEXT))
+                                            .truncate()
+                                            .child(case.title.clone()),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .text_color(rgb(TEXT_DIM))
+                                            .child(format!("Test · {}", case.category)),
+                                    ),
+                            ),
+                    );
+                }
+
+                let mut finding_count = 0usize;
+                for finding in &self.findings {
+                    let haystack = format!("{} {}", finding.code, finding.title).to_lowercase();
+                    if !query.is_empty() && !haystack.contains(&query) {
+                        continue;
+                    }
+                    if finding_count >= 40 {
+                        break;
+                    }
+                    finding_count += 1;
+                    let id = finding.id.clone();
+                    let selected = self.assistant_focus.kind == AssistantFocusKind::Finding
+                        && self.assistant_focus.id.as_deref() == Some(id.as_str());
+                    rows = rows.child(
+                        div()
+                            .id(SharedString::from(format!("focus-finding-{}", finding.id)))
+                            .flex()
+                            .items_center()
+                            .gap_3()
+                            .px_3()
+                            .py_2()
+                            .rounded_md()
+                            .bg(if selected {
+                                rgb(0x052e2b)
+                            } else {
+                                rgb(PANEL_ALT)
+                            })
+                            .border_1()
+                            .border_color(if selected {
+                                rgb(0x065f46)
+                            } else {
+                                rgb(BORDER_SOFT)
+                            })
+                            .cursor_pointer()
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.assistant_focus = AssistantFocus {
+                                    kind: AssistantFocusKind::Finding,
+                                    id: Some(id.clone()),
+                                };
+                                this.modal = None;
+                                cx.notify();
+                            }))
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap_1()
+                                    .flex_1()
+                                    .child(
+                                        div()
+                                            .text_xs()
+                                            .font_weight(FontWeight::MEDIUM)
+                                            .text_color(rgb(TEXT))
+                                            .truncate()
+                                            .child(format!("{} · {}", finding.code, finding.title)),
+                                    )
+                                    .child(
+                                        div().text_xs().text_color(rgb(TEXT_DIM)).child("Finding"),
+                                    ),
+                            ),
+                    );
+                }
+
+                if self.tests.is_empty() && self.findings.is_empty() {
+                    rows =
+                        rows.child(muted().child(
+                            "No tests or findings yet. Engagement context is the only focus.",
+                        ));
+                }
+
+                let card = modal_card(620.)
+                    .child(modal_header(
+                        "Agent focus",
+                        Some("Choose the context sent to the assistant.".into()),
+                    ))
+                    .child(
+                        div()
+                            .p_5()
+                            .flex()
+                            .flex_col()
+                            .gap_3()
+                            .child(text_input(&self.focus_search, "Search tests and findings")),
+                    )
+                    .child(div().px_5().pb_5().child(rows))
+                    .child(modal_footer([ghost_btn("close-focus-picker", "Close")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.modal = None;
+                            cx.notify();
+                        }))
+                        .into_any_element()]));
                 Some(self.wrap_modal(card, window, cx))
             }
             Modal::TemplatePicker => {
@@ -9361,7 +9672,10 @@ impl RootView {
         }
     }
 
-    fn wrap_modal(&self, card: Div, _window: &mut Window, cx: &mut Context<Self>) -> Div {
+    fn wrap_modal(&self, card: Div, window: &mut Window, cx: &mut Context<Self>) -> Div {
+        let max_width = (f32::from(window.viewport_size().width) - 32.0).max(320.0);
+        let max_height = (f32::from(window.viewport_size().height) - 32.0).max(280.0);
+        let card = card.max_w(px(max_width)).max_h(px(max_height));
         modal_backdrop()
             .on_mouse_down(
                 MouseButton::Left,
@@ -9755,8 +10069,45 @@ fn mime_for(filename: &str) -> String {
     .to_string()
 }
 
+impl RootView {
+    fn render_page_content(&self, cx: &mut Context<Self>) -> Div {
+        let content = div()
+            .max_w(px(1280.))
+            .mx_auto()
+            .w_full()
+            .p(self.layout.page_padding())
+            .flex()
+            .flex_col()
+            .gap_4();
+        content
+            .child(if let Some(error) = &self.error {
+                error_banner(error.clone()).into_any_element()
+            } else {
+                div().into_any_element()
+            })
+            .child(if let Some(notice) = &self.notice {
+                success_banner(notice.clone()).into_any_element()
+            } else {
+                div().into_any_element()
+            })
+            .child(match &self.route {
+                Route::Dashboard => self.render_dashboard(cx),
+                Route::Engagements => self.render_engagements(cx),
+                Route::Templates => self.render_templates(cx),
+                Route::Detail(id, tab) => self.render_detail(id, *tab, cx),
+                Route::Mcp => self.render_mcp(cx),
+                Route::Settings => self.render_settings(cx),
+                Route::Activity => self.render_activity(cx),
+            })
+    }
+}
+
 impl Render for RootView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.layout = LayoutMetrics::from_width(window.viewport_size().width);
+        let sidebar_width = self.layout.sidebar_width();
+        let content_width =
+            (f32::from(window.viewport_size().width) - f32::from(sidebar_width)).max(320.0);
         if self.clear_passphrase {
             self.clear_sensitive_forms(window, cx);
             self.clear_passphrase = false;
@@ -9776,39 +10127,12 @@ impl Render for RootView {
                 .child(
                     div()
                         .id("main-scroll")
-                        .flex_1()
+                        .w(px(content_width))
+                        .flex_none()
                         .h_full()
                         .overflow_y_scrollbar()
                         .bg(rgb(BG))
-                        .child(
-                            div()
-                                .max_w(px(1280.))
-                                .mx_auto()
-                                .w_full()
-                                .p_6()
-                                .flex()
-                                .flex_col()
-                                .gap_4()
-                                .child(if let Some(error) = &self.error {
-                                    error_banner(error.clone()).into_any_element()
-                                } else {
-                                    div().into_any_element()
-                                })
-                                .child(if let Some(notice) = &self.notice {
-                                    success_banner(notice.clone()).into_any_element()
-                                } else {
-                                    div().into_any_element()
-                                })
-                                .child(match &self.route {
-                                    Route::Dashboard => self.render_dashboard(cx),
-                                    Route::Engagements => self.render_engagements(cx),
-                                    Route::Templates => self.render_templates(cx),
-                                    Route::Detail(id, tab) => self.render_detail(id, *tab, cx),
-                                    Route::Mcp => self.render_mcp(cx),
-                                    Route::Settings => self.render_settings(cx),
-                                    Route::Activity => self.render_activity(cx),
-                                }),
-                        ),
+                        .child(self.render_page_content(cx)),
                 )
         } else {
             self.render_unlock(cx)
@@ -9827,5 +10151,32 @@ impl Render for RootView {
             root = root.child(modal);
         }
         root
+    }
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+
+    #[test]
+    fn breakpoints_and_columns_follow_viewport_width() {
+        let wide = LayoutMetrics::from_width(px(1440.));
+        assert!(!wide.compact);
+        assert!(!wide.narrow);
+        assert_eq!(f32::from(wide.sidebar_width()), 256.0);
+        assert_eq!(wide.grid_columns(5, 3, 2), 5);
+
+        let compact = LayoutMetrics::from_width(px(1100.));
+        assert!(compact.compact);
+        assert!(!compact.narrow);
+        assert_eq!(f32::from(compact.sidebar_width()), 220.0);
+        assert_eq!(compact.grid_columns(5, 3, 2), 3);
+
+        let narrow = LayoutMetrics::from_width(px(900.));
+        assert!(narrow.compact);
+        assert!(narrow.narrow);
+        assert_eq!(f32::from(narrow.sidebar_width()), 196.0);
+        assert_eq!(f32::from(narrow.page_padding()), 12.0);
+        assert_eq!(narrow.grid_columns(5, 3, 2), 2);
     }
 }
