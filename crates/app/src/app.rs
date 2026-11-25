@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -246,6 +247,7 @@ pub struct RootView {
     detail: Option<EngagementDetail>,
     tests: Vec<TestCase>,
     findings: Vec<Finding>,
+    findings_by_test: HashMap<String, Vec<usize>>,
     evidence: Vec<Evidence>,
     audit: Vec<AuditEvent>,
     snapshots: Vec<SnapshotSummary>,
@@ -266,6 +268,7 @@ pub struct RootView {
     agent_mode: AgentMode,
     loading_activity: bool,
     activity: Vec<AuditEvent>,
+    engagement_names: HashMap<String, String>,
     scope_editor_scope: Entity<TextareaState>,
     scope_editor_risks: Entity<TextareaState>,
     scope_editor_assumptions: Entity<TextareaState>,
@@ -496,6 +499,7 @@ impl RootView {
             detail: None,
             tests: Vec::new(),
             findings: Vec::new(),
+            findings_by_test: HashMap::new(),
             evidence: Vec::new(),
             audit: Vec::new(),
             snapshots: Vec::new(),
@@ -516,6 +520,7 @@ impl RootView {
             agent_mode: AgentMode::Plan,
             loading_activity: false,
             activity: Vec::new(),
+            engagement_names: HashMap::new(),
             scope_editor_scope,
             scope_editor_risks,
             scope_editor_assumptions,
@@ -741,15 +746,10 @@ impl RootView {
                 let tests =
                     services::test_cases::list_test_cases(state.clone(), id.clone()).await?;
                 let findings = services::findings::list_findings(state.clone(), id.clone()).await?;
-                let evidence = services::evidence::list_evidence(state.clone(), id.clone()).await?;
-                let audit = services::engagements::list_audit_events(
-                    state.clone(),
-                    Some(id.clone()),
-                    Some(500),
-                )
-                .await?;
-                let snapshots = services::review::list_snapshots(state.clone(), id.clone()).await?;
-                let approvals = services::review::list_approvals(state.clone(), id.clone()).await?;
+                let evidence = Vec::new();
+                let audit = Vec::new();
+                let snapshots = Vec::new();
+                let approvals = Vec::new();
                 let documents =
                     services::documents::list_documents(state.clone(), id.clone()).await?;
                 let files =
@@ -788,6 +788,20 @@ impl RootView {
                     this.detail = Some(bundle.detail);
                     this.tests = bundle.tests;
                     this.findings = bundle.findings;
+                    let mut findings_by_test: HashMap<String, Vec<usize>> = HashMap::new();
+                    for (index, finding) in this.findings.iter().enumerate() {
+                        for test_id in &finding.test_case_ids {
+                            findings_by_test
+                                .entry(test_id.clone())
+                                .or_default()
+                                .push(index);
+                        }
+                    }
+                    for indices in findings_by_test.values_mut() {
+                        indices
+                            .sort_by_key(|index| std::cmp::Reverse(this.findings[*index].severity));
+                    }
+                    this.findings_by_test = findings_by_test;
                     this.evidence = bundle.evidence;
                     this.audit = bundle.audit;
                     this.snapshots = bundle.snapshots;
@@ -4557,6 +4571,11 @@ impl RootView {
                 Ok((events, engagements)) => {
                     this.activity = events;
                     this.engagements = engagements;
+                    this.engagement_names = this
+                        .engagements
+                        .iter()
+                        .map(|engagement| (engagement.id.clone(), engagement.name.clone()))
+                        .collect();
                 }
                 Err(error) => this.set_error(error),
             }
@@ -5321,12 +5340,8 @@ impl RootView {
             let engagement_name = event
                 .engagement_id
                 .as_ref()
-                .and_then(|id| {
-                    self.engagements
-                        .iter()
-                        .find(|engagement| &engagement.id == id)
-                        .map(|engagement| engagement.name.clone())
-                })
+                .and_then(|id| self.engagement_names.get(id))
+                .cloned()
                 .unwrap_or_else(|| "Vault".into());
             let mut row = div()
                 .flex()
@@ -5459,18 +5474,21 @@ impl RootView {
         let can_reorder = search.is_empty() && self.test_filter.is_none();
         let mut rows = div().flex().flex_col();
         for (index, case) in cases.iter().enumerate() {
-            let mut linked: Vec<Finding> = self
-                .findings
-                .iter()
-                .filter(|finding| finding.test_case_ids.contains(&case.id))
-                .filter(|finding| {
-                    self.severity_filter
-                        .map(|severity| finding.severity == severity)
-                        .unwrap_or(true)
+            let linked: Vec<&Finding> = self
+                .findings_by_test
+                .get(&case.id)
+                .map(|indices| {
+                    indices
+                        .iter()
+                        .filter_map(|index| self.findings.get(*index))
+                        .filter(|finding| {
+                            self.severity_filter
+                                .map(|severity| finding.severity == severity)
+                                .unwrap_or(true)
+                        })
+                        .collect()
                 })
-                .cloned()
-                .collect();
-            linked.sort_by_key(|finding| std::cmp::Reverse(finding.severity));
+                .unwrap_or_default();
             let edit_id = case.id.clone();
             let delete_id = case.id.clone();
             let add_finding_id = case.id.clone();

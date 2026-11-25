@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::domain::enums::{FindingStatus, RetestStatus, Severity};
@@ -35,9 +37,31 @@ pub fn list(conn: &Connection, engagement_id: &str) -> AppResult<Vec<Finding>> {
     let rows = stmt
         .query_map([engagement_id], map_row)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    let mut links: HashMap<String, Vec<String>> = HashMap::new();
+    if !rows.is_empty() {
+        let mut link_stmt = conn.prepare(
+            "SELECT l.finding_id, l.test_case_id
+             FROM finding_test_cases l
+             JOIN findings f ON f.id = l.finding_id
+             WHERE f.engagement_id = ?1
+             ORDER BY l.test_case_id",
+        )?;
+        let link_rows = link_stmt.query_map([engagement_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in link_rows {
+            let (finding_id, test_case_id) = row?;
+            links.entry(finding_id).or_default().push(test_case_id);
+        }
+    }
+
     rows.into_iter()
-        .map(|row| hydrate(conn, row))
-        .collect::<AppResult<Vec<_>>>()
+        .map(|row| {
+            let id = row.0.clone();
+            hydrate_with_links(row, links.remove(&id).unwrap_or_default())
+        })
+        .collect()
 }
 
 pub fn get(conn: &Connection, id: &str) -> AppResult<Finding> {
@@ -177,6 +201,16 @@ fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<FindingRow> {
 }
 
 fn hydrate(conn: &Connection, row: FindingRow) -> AppResult<Finding> {
+    let id = row.0.clone();
+    let mut stmt =
+        conn.prepare("SELECT test_case_id FROM finding_test_cases WHERE finding_id = ?1")?;
+    let test_case_ids = stmt
+        .query_map([&id], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    hydrate_with_links(row, test_case_ids)
+}
+
+fn hydrate_with_links(row: FindingRow, test_case_ids: Vec<String>) -> AppResult<Finding> {
     let (
         id,
         engagement_id,
@@ -196,11 +230,6 @@ fn hydrate(conn: &Connection, row: FindingRow) -> AppResult<Finding> {
         created_at,
         updated_at,
     ) = row;
-    let mut stmt =
-        conn.prepare("SELECT test_case_id FROM finding_test_cases WHERE finding_id = ?1")?;
-    let test_case_ids = stmt
-        .query_map([&id], |row| row.get::<_, String>(0))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(Finding {
         id,
         engagement_id,
