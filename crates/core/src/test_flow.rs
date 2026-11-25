@@ -7,8 +7,7 @@ use crate::domain::enums::{
     TestCaseStatus,
 };
 use crate::domain::models::{
-    ContactInput, EngagementInput, Evidence, FindingInput, RiskInput, ScopeAssetInput, Snapshot,
-    TestCaseInput,
+    EngagementInput, Evidence, FindingInput, ScopeAssetInput, Snapshot, TestCaseInput,
 };
 use crate::domain::severity::severity_for;
 use crate::domain::signing::approval_message;
@@ -79,20 +78,6 @@ fn local_flow_persists_and_verifies() {
             value: "https://app.example.test".into(),
             in_scope: true,
             notes: String::new(),
-        }],
-        risks: vec![RiskInput {
-            title: "Unauthorized access".into(),
-            description: String::new(),
-            likelihood: 7,
-            impact: 7,
-            notes: String::new(),
-        }],
-        assumptions: vec!["Testing is limited to listed assets.".into()],
-        contacts: vec![ContactInput {
-            name: "Client Contact".into(),
-            role: "Owner".into(),
-            email: "contact@example.test".into(),
-            phone: String::new(),
         }],
     };
 
@@ -194,7 +179,7 @@ fn local_flow_persists_and_verifies() {
     assert_eq!(detail.test_case_count, 1);
     assert_eq!(detail.finding_count, 1);
     assert_eq!(detail.open_finding_count, 1);
-    assert_eq!(detail.risks[0].severity, Severity::Critical);
+    assert!(detail.risks.is_empty());
 
     let evidence = Evidence {
         id: "evidence-1".into(),

@@ -353,7 +353,7 @@ fn conclusion_section(source: &ReportSource<'_>) -> ReportSection {
     let counts = severity_counts(source);
     let critical_high = counts[4] + counts[3];
     let text = if source.findings.is_empty() {
-        "No findings were recorded during this engagement. Review the test tracker for executed coverage and any limitations documented in the assumptions.".to_string()
+        "No findings were recorded during this engagement. Review the test tracker for executed coverage and any limitations documented in scope.".to_string()
     } else if critical_high > 0 {
         format!(
             "The engagement recorded {} findings, including {} critical or high severity issues. Address the highest-risk findings first and schedule retesting after remediation.",

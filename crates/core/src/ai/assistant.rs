@@ -455,7 +455,6 @@ pub fn build_assistant_prompt(
         );
         prompt.push_str("- application_summary: {\"value\":\"...\"}\n");
         prompt.push_str("- attack_surface: {\"value\":\"...\"}\n");
-        prompt.push_str("- assumptions: {\"values\":[\"...\"]}\n");
         prompt.push_str("- test_cases: {\"testCases\":[{\"title\":\"...\",\"category\":\"...\",\"approach\":\"...\",\"expectedResult\":\"...\"}]}\n");
         prompt.push_str("- test_approach: {\"approach\":\"...\"} with a test case target\n");
         prompt.push_str("- finding_draft: finding fields with a test case target\n");
@@ -584,7 +583,6 @@ fn parse_action(action: &Value) -> AppResult<AssistantActionProposal> {
     let skill = match kind {
         "application_summary" => AgentSkill::ApplicationSummary,
         "attack_surface" => AgentSkill::AttackSurface,
-        "assumptions" => AgentSkill::Assumptions,
         "test_cases" => AgentSkill::TestCases,
         "test_approach" => AgentSkill::TestApproach,
         "finding_draft" => AgentSkill::FindingDraft,

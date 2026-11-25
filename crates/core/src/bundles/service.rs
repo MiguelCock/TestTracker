@@ -11,8 +11,8 @@ use uuid::Uuid;
 use crate::db;
 use crate::documents::model::GeneratedDocument;
 use crate::domain::models::{
-    ContactInput, EngagementFile, EngagementInput, Evidence, FindingInput, ProfileSummary,
-    RiskInput, ScopeAssetInput, StoredEngagementFile, TestCaseInput,
+    EngagementFile, EngagementInput, Evidence, FindingInput, ProfileSummary, ScopeAssetInput,
+    StoredEngagementFile, TestCaseInput,
 };
 use crate::domain::severity::severity_for;
 use crate::error::{AppError, AppResult};
@@ -247,32 +247,6 @@ pub fn import_bundle(
                     value: asset.value.clone(),
                     in_scope: asset.in_scope,
                     notes: asset.notes.clone(),
-                })
-                .collect(),
-            risks: data
-                .risks
-                .iter()
-                .map(|risk| RiskInput {
-                    title: risk.title.clone(),
-                    description: risk.description.clone(),
-                    likelihood: risk.likelihood,
-                    impact: risk.impact,
-                    notes: risk.notes.clone(),
-                })
-                .collect(),
-            assumptions: data
-                .assumptions
-                .iter()
-                .map(|assumption| assumption.text.clone())
-                .collect(),
-            contacts: data
-                .contacts
-                .iter()
-                .map(|contact| ContactInput {
-                    name: contact.name.clone(),
-                    role: contact.role.clone(),
-                    email: contact.email.clone(),
-                    phone: contact.phone.clone(),
                 })
                 .collect(),
         };

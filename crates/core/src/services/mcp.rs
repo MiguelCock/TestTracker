@@ -276,7 +276,6 @@ pub async fn mcp_approve(
                 record.skill,
                 crate::ai::agent::AgentSkill::ApplicationSummary
                     | crate::ai::agent::AgentSkill::AttackSurface
-                    | crate::ai::agent::AgentSkill::Assumptions
             ),
         })
     });

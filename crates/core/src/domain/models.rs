@@ -117,12 +117,6 @@ pub struct EngagementInput {
     pub attack_surface: String,
     #[serde(default)]
     pub scope_assets: Vec<ScopeAssetInput>,
-    #[serde(default)]
-    pub risks: Vec<RiskInput>,
-    #[serde(default)]
-    pub assumptions: Vec<String>,
-    #[serde(default)]
-    pub contacts: Vec<ContactInput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

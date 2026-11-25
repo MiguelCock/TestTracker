@@ -171,11 +171,7 @@ pub(crate) fn validate_engagement(input: &EngagementInput) -> AppResult<()> {
             "Summary fields must be at most 20,000 characters.".into(),
         ));
     }
-    if input.scope_assets.len() > 500
-        || input.risks.len() > 200
-        || input.assumptions.len() > 200
-        || input.contacts.len() > 100
-    {
+    if input.scope_assets.len() > 500 {
         return Err(AppError::Validation(
             "Too many child records in the engagement.".into(),
         ));
@@ -190,33 +186,6 @@ pub(crate) fn validate_engagement(input: &EngagementInput) -> AppResult<()> {
             return Err(AppError::Validation(
                 "Scope asset fields are too long.".into(),
             ));
-        }
-    }
-    for risk in &input.risks {
-        if risk.title.trim().is_empty() || risk.title.chars().count() > 200 {
-            return Err(AppError::Validation(
-                "Risk titles must be between 1 and 200 characters.".into(),
-            ));
-        }
-        if risk.likelihood > 9 || risk.impact > 9 {
-            return Err(AppError::Validation(
-                "Risk likelihood and impact must be between 0 and 9.".into(),
-            ));
-        }
-    }
-    for text in &input.assumptions {
-        if text.chars().count() > 2_000 {
-            return Err(AppError::Validation("Assumption text is too long.".into()));
-        }
-    }
-    for contact in &input.contacts {
-        if contact.name.trim().is_empty() || contact.name.chars().count() > 200 {
-            return Err(AppError::Validation(
-                "Contact names must be between 1 and 200 characters.".into(),
-            ));
-        }
-        if contact.email.chars().count() > 320 {
-            return Err(AppError::Validation("Contact email is too long.".into()));
         }
     }
     Ok(())

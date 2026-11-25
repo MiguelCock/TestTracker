@@ -21,10 +21,9 @@ use testtracker_core::ai::model::{AiPolicy, AiProviderInput, AiProviderKind, AiP
 use testtracker_core::documents::model::{DocumentFormat, DocumentKind, GeneratedDocument};
 use testtracker_core::domain::enums::{EngagementStatus, FindingStatus, Severity, TestCaseStatus};
 use testtracker_core::domain::models::{
-    Approval, AuditEvent, ContactInput, DashboardMetrics, EngagementDetail, EngagementFile,
-    EngagementFilePreview, EngagementInput, EngagementSummary, Evidence, Finding, RiskInput,
-    ScopeAssetInput, SessionInfo, Snapshot, SnapshotSummary, TestCase, TestCaseTemplateInput,
-    ToolPermission,
+    Approval, AuditEvent, DashboardMetrics, EngagementDetail, EngagementFile,
+    EngagementFilePreview, EngagementInput, EngagementSummary, Evidence, Finding, ScopeAssetInput,
+    SessionInfo, Snapshot, SnapshotSummary, TestCase, TestCaseTemplateInput, ToolPermission,
 };
 use testtracker_core::domain::models::{TestCaseTemplate, TestTemplateBundle};
 use testtracker_core::error::AppError;
@@ -280,9 +279,6 @@ pub struct RootView {
     activity_has_more: bool,
     engagement_names: HashMap<String, String>,
     scope_editor_scope: Entity<TextareaState>,
-    scope_editor_risks: Entity<TextareaState>,
-    scope_editor_assumptions: Entity<TextareaState>,
-    scope_editor_contacts: Entity<TextareaState>,
     files: Vec<EngagementFile>,
     file_folder: Entity<InputState>,
     file_search: Entity<InputState>,
@@ -355,9 +351,6 @@ pub struct RootView {
     eng_surface: Entity<TextareaState>,
     eng_status: EngagementStatus,
     eng_scope: Vec<ScopeAssetInput>,
-    eng_risks: Vec<RiskInput>,
-    eng_assumptions: Vec<String>,
-    eng_contacts: Vec<ContactInput>,
     snapshot_label: Entity<InputState>,
     evidence_caption: Entity<InputState>,
     evidence_file: Option<(String, String, String)>,
@@ -452,9 +445,6 @@ impl RootView {
                 .masked(true)
         });
         let scope_editor_scope = cx.new(|cx| TextareaState::new(window, cx));
-        let scope_editor_risks = cx.new(|cx| TextareaState::new(window, cx));
-        let scope_editor_assumptions = cx.new(|cx| TextareaState::new(window, cx));
-        let scope_editor_contacts = cx.new(|cx| TextareaState::new(window, cx));
         let template_domain = cx.new(|cx| InputState::new(window, cx).placeholder("web"));
         let template_category =
             cx.new(|cx| InputState::new(window, cx).placeholder("Authentication"));
@@ -535,9 +525,6 @@ impl RootView {
             activity_has_more: false,
             engagement_names: HashMap::new(),
             scope_editor_scope,
-            scope_editor_risks,
-            scope_editor_assumptions,
-            scope_editor_contacts,
             files: Vec::new(),
             file_folder,
             file_search,
@@ -614,9 +601,6 @@ impl RootView {
             eng_surface,
             eng_status: EngagementStatus::Active,
             eng_scope: Vec::new(),
-            eng_risks: Vec::new(),
-            eng_assumptions: Vec::new(),
-            eng_contacts: Vec::new(),
             snapshot_label,
             evidence_caption,
             evidence_file: None,
@@ -1026,9 +1010,6 @@ impl RootView {
         self.notice = None;
         self.eng_editing = None;
         self.eng_scope.clear();
-        self.eng_risks.clear();
-        self.eng_assumptions.clear();
-        self.eng_contacts.clear();
         self.eng_status = EngagementStatus::Active;
         let (name, client, start, end, summary, surface) = if edit {
             if let Some(detail) = &self.detail {
@@ -1043,32 +1024,6 @@ impl RootView {
                         value: asset.value.clone(),
                         in_scope: asset.in_scope,
                         notes: asset.notes.clone(),
-                    })
-                    .collect();
-                self.eng_risks = detail
-                    .risks
-                    .iter()
-                    .map(|risk| RiskInput {
-                        title: risk.title.clone(),
-                        description: risk.description.clone(),
-                        likelihood: risk.likelihood,
-                        impact: risk.impact,
-                        notes: risk.notes.clone(),
-                    })
-                    .collect();
-                self.eng_assumptions = detail
-                    .assumptions
-                    .iter()
-                    .map(|item| item.text.clone())
-                    .collect();
-                self.eng_contacts = detail
-                    .contacts
-                    .iter()
-                    .map(|contact| ContactInput {
-                        name: contact.name.clone(),
-                        role: contact.role.clone(),
-                        email: contact.email.clone(),
-                        phone: contact.phone.clone(),
                     })
                     .collect();
                 (
@@ -1111,9 +1066,6 @@ impl RootView {
             application_summary: textarea_value(&self.eng_summary, cx),
             attack_surface: textarea_value(&self.eng_surface, cx),
             scope_assets: self.eng_scope.clone(),
-            risks: self.eng_risks.clone(),
-            assumptions: self.eng_assumptions.clone(),
-            contacts: self.eng_contacts.clone(),
         };
         let editing = self.eng_editing.clone();
         self.busy = true;
@@ -1350,9 +1302,6 @@ impl RootView {
             &self.finding_impact,
             &self.finding_remediation,
             &self.scope_editor_scope,
-            &self.scope_editor_risks,
-            &self.scope_editor_assumptions,
-            &self.scope_editor_contacts,
         ] {
             state.update(cx, |state, cx| state.set_value("", window, cx));
         }
@@ -1699,32 +1648,6 @@ impl RootView {
             application_summary: engagement.application_summary,
             attack_surface: engagement.attack_surface,
             scope_assets,
-            risks: detail
-                .risks
-                .iter()
-                .map(|risk| RiskInput {
-                    title: risk.title.clone(),
-                    description: risk.description.clone(),
-                    likelihood: risk.likelihood,
-                    impact: risk.impact,
-                    notes: risk.notes.clone(),
-                })
-                .collect(),
-            assumptions: detail
-                .assumptions
-                .iter()
-                .map(|item| item.text.clone())
-                .collect(),
-            contacts: detail
-                .contacts
-                .iter()
-                .map(|contact| ContactInput {
-                    name: contact.name.clone(),
-                    role: contact.role.clone(),
-                    email: contact.email.clone(),
-                    phone: contact.phone.clone(),
-                })
-                .collect(),
         };
         let id = engagement.id;
         self.busy = true;
@@ -7330,7 +7253,7 @@ impl RootView {
                     .child(modal_header(
                         if editing { "Edit engagement" } else { "New engagement" },
                         Some(
-                            "Scope, assumptions, and contacts can be refined from the engagement overview."
+                            "Scope and application details can be refined from the engagement overview."
                                 .into(),
                         ),
                     ))

@@ -287,15 +287,12 @@ pub async fn run_plugin(
             engagement = serde_json::json!({
                 "engagement": detail.engagement,
                 "scopeAssets": detail.scope_assets,
-                "risks": detail.risks,
-                "assumptions": detail.assumptions,
-                "contacts": detail.contacts,
             });
             test_cases = serde_json::to_value(tests)?;
             findings = serde_json::to_value(findings_list)?;
         }
         let input = serde_json::json!({
-            "schema": "testtracker.plugin.input.v1",
+            "schema": "testtracker.plugin.input.v2",
             "plugin": { "id": plugin.id, "version": plugin.version },
             "capabilities": manifest.capabilities,
             "engagement": engagement,

@@ -97,9 +97,6 @@ fn seed_visual_fixture() {
                         notes: "Out of scope for this engagement".into(),
                     },
                 ],
-                risks: Vec::new(),
-                assumptions: vec!["Synthetic fixture only.".into()],
-                contacts: Vec::new(),
             },
         )
         .await
@@ -218,9 +215,6 @@ fn seed_visual_fixture() {
                 application_summary: String::new(),
                 attack_surface: String::new(),
                 scope_assets: Vec::new(),
-                risks: Vec::new(),
-                assumptions: Vec::new(),
-                contacts: Vec::new(),
             },
         )
         .await

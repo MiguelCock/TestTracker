@@ -14,7 +14,6 @@ use super::model::AiProviderKind;
 pub enum AgentSkill {
     ApplicationSummary,
     AttackSurface,
-    Assumptions,
     TestCases,
     TestApproach,
     FindingDraft,
@@ -26,7 +25,6 @@ impl AgentSkill {
         match self {
             Self::ApplicationSummary => "application_summary",
             Self::AttackSurface => "attack_surface",
-            Self::Assumptions => "assumptions",
             Self::TestCases => "test_cases",
             Self::TestApproach => "test_approach",
             Self::FindingDraft => "finding_draft",
@@ -38,7 +36,6 @@ impl AgentSkill {
         match self {
             Self::ApplicationSummary => "Draft application summary",
             Self::AttackSurface => "Draft attack surface",
-            Self::Assumptions => "Draft assumptions",
             Self::TestCases => "Generate test cases",
             Self::TestApproach => "Draft test approach",
             Self::FindingDraft => "Draft finding",
@@ -67,7 +64,6 @@ impl AgentSkill {
     pub fn json_shape(self) -> &'static str {
         match self {
             Self::ApplicationSummary | Self::AttackSurface => r#"{"value":"..."}"#,
-            Self::Assumptions => r#"{"values":["...","..."]}"#,
             Self::TestCases => {
                 r#"{"testCases":[{"title":"...","category":"...","approach":"...","expectedResult":"..."}]}"#
             }
@@ -90,18 +86,6 @@ impl AgentSkill {
                 "type": "object",
                 "properties": { "value": { "type": "string" } },
                 "required": ["value"]
-            }),
-            Self::Assumptions => json!({
-                "type": "object",
-                "properties": {
-                    "values": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "minItems": 1,
-                        "maxItems": 50
-                    }
-                },
-                "required": ["values"]
             }),
             Self::TestCases => json!({
                 "type": "object",
@@ -177,9 +161,6 @@ impl AgentSkill {
             }
             Self::AttackSurface => {
                 "Write a concise attack-surface description using the supplied context. Cover authentication, roles, APIs, uploads, admin functions, integrations, and infrastructure. Do not add facts that are not supported by the context."
-            }
-            Self::Assumptions => {
-                "Propose 3-8 concise engagement assumptions or limitations supported by the context. Avoid duplicating existing assumptions."
             }
             Self::TestCases => {
                 "Suggest 5-10 penetration-testing test cases for this engagement. Each needs a title, category, a concrete approach, and an expected result. Avoid duplicating existing test titles. Do not include executed results or findings."
@@ -340,9 +321,6 @@ pub fn build_context(
             "attackSurface": detail.engagement.attack_surface,
         },
         "scopeAssets": detail.scope_assets,
-        "risks": detail.risks,
-        "assumptions": detail.assumptions,
-        "contacts": detail.contacts,
         "existingTestCases": test_summaries,
         "existingFindings": finding_summaries,
     });
@@ -446,31 +424,6 @@ pub fn validate_proposal_payload(skill: AgentSkill, payload: Value) -> AppResult
                     AppError::External("The agent returned an invalid field value.".into())
                 })?;
             Ok(json!({ "value": value }))
-        }
-        AgentSkill::Assumptions => {
-            let values = payload
-                .get("values")
-                .and_then(Value::as_array)
-                .ok_or_else(|| {
-                    AppError::External("The agent returned invalid assumptions.".into())
-                })?;
-            if values.is_empty() || values.len() > 50 {
-                return Err(AppError::External(
-                    "The agent returned an invalid number of assumptions.".into(),
-                ));
-            }
-            let mut out = Vec::new();
-            for value in values {
-                let value = value
-                    .as_str()
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty() && value.chars().count() <= 2_000)
-                    .ok_or_else(|| {
-                        AppError::External("The agent returned an invalid assumption.".into())
-                    })?;
-                out.push(value.to_string());
-            }
-            Ok(json!({ "values": out }))
         }
         AgentSkill::TestCases => validate_test_cases(&payload),
         AgentSkill::TestApproach => {

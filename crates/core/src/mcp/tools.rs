@@ -117,13 +117,6 @@ struct AttackSurfaceArgs {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-struct AssumptionsArgs {
-    engagement_id: String,
-    assumptions: Vec<String>,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
 struct TestCasesProposalArgs {
     engagement_id: String,
     test_cases: Vec<TestCaseProposal>,
@@ -490,7 +483,7 @@ impl McpTools {
     }
 
     #[tool(
-        description = "Read a sanitized engagement context for drafting. Contacts and evidence content are omitted."
+        description = "Read a sanitized engagement context for drafting. Evidence content is omitted."
     )]
     async fn get_engagement_context(
         &self,
@@ -500,18 +493,13 @@ impl McpTools {
         let app = self.app.clone();
         let result = run_blocking(app, move |state| {
             state.with_session_no_touch(|session| {
-                let mut context = build_context(
+                let context = build_context(
                     &session.conn,
                     &args.engagement_id,
                     AgentSkill::TestCases,
                     None,
                 )?
                 .context;
-                if let Some(object) = context.as_object_mut() {
-                    object.remove("contacts");
-                    object.remove("risks");
-                    object.remove("assumptions");
-                }
                 Ok(context)
             })
         })
@@ -557,28 +545,6 @@ impl McpTools {
                 AgentSkill::AttackSurface,
                 None,
                 json!({ "value": args.attack_surface }),
-            )
-        })
-        .await?;
-        Ok(Json(serde_json::to_value(accepted(&record)).map_err(
-            |_| ErrorData::internal_error("Unable to serialize the approval.", None),
-        )?))
-    }
-
-    #[tool(description = "Submit engagement assumptions for approval. This does not write data.")]
-    async fn propose_assumptions(
-        &self,
-        Parameters(args): Parameters<AssumptionsArgs>,
-    ) -> Result<Json<Value>, ErrorData> {
-        validate_id(&args.engagement_id)?;
-        let app = self.app.clone();
-        let record = run_blocking(app, move |state| {
-            create_proposal(
-                state,
-                &args.engagement_id,
-                AgentSkill::Assumptions,
-                None,
-                json!({ "values": args.assumptions }),
             )
         })
         .await?;
@@ -1027,9 +993,6 @@ mod tests {
                 application_summary: String::new(),
                 attack_surface: String::new(),
                 scope_assets: Vec::new(),
-                risks: Vec::new(),
-                assumptions: Vec::new(),
-                contacts: Vec::new(),
             },
             profile_id,
             now,

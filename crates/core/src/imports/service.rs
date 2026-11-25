@@ -4,9 +4,7 @@ use rusqlite::Transaction;
 
 use crate::db;
 use crate::domain::enums::{EngagementStatus, FindingStatus, RetestStatus, TestCaseStatus};
-use crate::domain::models::{
-    ContactInput, EngagementInput, FindingInput, RiskInput, ScopeAssetInput, TestCaseInput,
-};
+use crate::domain::models::{EngagementInput, FindingInput, ScopeAssetInput, TestCaseInput};
 use crate::domain::severity::severity_for;
 use crate::error::{AppError, AppResult};
 use crate::security::audit;
@@ -15,8 +13,7 @@ use crate::services::findings::validate as validate_finding;
 use crate::services::test_cases::validate as validate_test_case;
 
 use super::model::{
-    ImportApplyResult, ImportContact, ImportDraft, ImportFinding, ImportRisk, ImportScopeAsset,
-    ImportTestCase,
+    ImportApplyResult, ImportDraft, ImportFinding, ImportScopeAsset, ImportTestCase,
 };
 
 const MAX_AI_TEXT_CHARS: usize = 120_000;
@@ -119,25 +116,6 @@ pub fn apply_draft(
             .filter(|asset| !asset.value.trim().is_empty())
             .map(scope_input)
             .collect(),
-        risks: draft
-            .risks
-            .iter()
-            .filter(|risk| !risk.description.trim().is_empty() || !risk.title.trim().is_empty())
-            .map(risk_input)
-            .collect(),
-        assumptions: draft
-            .assumptions
-            .iter()
-            .map(|assumption| assumption.trim().to_string())
-            .filter(|assumption| !assumption.is_empty())
-            .take(200)
-            .collect(),
-        contacts: draft
-            .contacts
-            .iter()
-            .filter(|contact| !contact.name.trim().is_empty())
-            .map(contact_input)
-            .collect(),
     };
     validate_engagement(&input)?;
     db::engagements::insert(tx, &engagement_id, &input, actor_id, now)?;
@@ -207,29 +185,6 @@ fn scope_input(asset: &ImportScopeAsset) -> ScopeAssetInput {
         value: asset.value.trim().to_string(),
         in_scope: asset.in_scope,
         notes: asset.notes.clone(),
-    }
-}
-
-fn risk_input(risk: &ImportRisk) -> RiskInput {
-    RiskInput {
-        title: if risk.title.trim().is_empty() {
-            "Imported risk".into()
-        } else {
-            risk.title.trim().to_string()
-        },
-        description: risk.description.clone(),
-        likelihood: risk.likelihood.min(9),
-        impact: risk.impact.min(9),
-        notes: risk.notes.clone(),
-    }
-}
-
-fn contact_input(contact: &ImportContact) -> ContactInput {
-    ContactInput {
-        name: contact.name.trim().to_string(),
-        role: contact.role.trim().to_string(),
-        email: contact.email.trim().to_string(),
-        phone: contact.phone.trim().to_string(),
     }
 }
 

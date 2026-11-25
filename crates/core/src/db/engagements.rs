@@ -5,7 +5,6 @@ use crate::domain::models::{
     Assumption, Contact, Engagement, EngagementDetail, EngagementInput, EngagementSummary, Risk,
     ScopeAsset,
 };
-use crate::domain::severity::severity_for;
 use crate::error::{AppError, AppResult};
 
 pub fn list(conn: &Connection) -> AppResult<Vec<EngagementSummary>> {
@@ -309,19 +308,6 @@ fn replace_children(
         "DELETE FROM scope_assets WHERE engagement_id = ?1",
         [engagement_id],
     )?;
-    conn.execute(
-        "DELETE FROM risks WHERE engagement_id = ?1",
-        [engagement_id],
-    )?;
-    conn.execute(
-        "DELETE FROM assumptions WHERE engagement_id = ?1",
-        [engagement_id],
-    )?;
-    conn.execute(
-        "DELETE FROM contacts WHERE engagement_id = ?1",
-        [engagement_id],
-    )?;
-
     for asset in &input.scope_assets {
         conn.execute(
             "INSERT INTO scope_assets (id, engagement_id, kind, value, in_scope, notes)
@@ -333,49 +319,6 @@ fn replace_children(
                 asset.value.trim(),
                 if asset.in_scope { 1 } else { 0 },
                 asset.notes,
-            ],
-        )?;
-    }
-    for risk in &input.risks {
-        let severity = severity_for(risk.likelihood, risk.impact)?;
-        conn.execute(
-            "INSERT INTO risks (id, engagement_id, title, description, likelihood, impact, severity, notes)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            rusqlite::params![
-                uuid::Uuid::now_v7().to_string(),
-                engagement_id,
-                risk.title.trim(),
-                risk.description,
-                risk.likelihood,
-                risk.impact,
-                severity.as_str(),
-                risk.notes,
-            ],
-        )?;
-    }
-    for text in &input.assumptions {
-        if text.trim().is_empty() {
-            continue;
-        }
-        conn.execute(
-            "INSERT INTO assumptions (id, engagement_id, text) VALUES (?1, ?2, ?3)",
-            rusqlite::params![uuid::Uuid::now_v7().to_string(), engagement_id, text.trim()],
-        )?;
-    }
-    for contact in &input.contacts {
-        if contact.name.trim().is_empty() {
-            continue;
-        }
-        conn.execute(
-            "INSERT INTO contacts (id, engagement_id, name, role, email, phone)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            rusqlite::params![
-                uuid::Uuid::now_v7().to_string(),
-                engagement_id,
-                contact.name.trim(),
-                contact.role.trim(),
-                contact.email.trim(),
-                contact.phone.trim(),
             ],
         )?;
     }

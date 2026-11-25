@@ -15,8 +15,7 @@ use crate::ai::{providers, redaction};
 use crate::db;
 use crate::domain::enums::{FindingStatus, RetestStatus, TestCaseStatus};
 use crate::domain::models::{
-    ContactInput, EngagementDetail, EngagementInput, FindingInput, RiskInput, ScopeAssetInput,
-    TestCaseInput,
+    EngagementDetail, EngagementInput, FindingInput, ScopeAssetInput, TestCaseInput,
 };
 use crate::domain::rbac;
 use crate::domain::severity::severity_for;
@@ -332,9 +331,7 @@ pub async fn apply_agent_proposal(
             created_findings,
             updated_engagement: matches!(
                 proposal.skill,
-                AgentSkill::ApplicationSummary
-                    | AgentSkill::AttackSurface
-                    | AgentSkill::Assumptions
+                AgentSkill::ApplicationSummary | AgentSkill::AttackSurface
             ),
         }),
         Err(error) => {
@@ -351,7 +348,7 @@ pub(crate) fn apply_proposal(
     now: &str,
 ) -> AppResult<(String, usize, usize)> {
     match proposal.skill {
-        AgentSkill::ApplicationSummary | AgentSkill::AttackSurface | AgentSkill::Assumptions => {
+        AgentSkill::ApplicationSummary | AgentSkill::AttackSurface => {
             let detail = db::engagements::detail(tx, &proposal.engagement_id)?;
             let mut input = input_from_detail(&detail);
             match proposal.skill {
@@ -360,9 +357,6 @@ pub(crate) fn apply_proposal(
                 }
                 AgentSkill::AttackSurface => {
                     input.attack_surface = payload_string(&proposal.payload, "value")?;
-                }
-                AgentSkill::Assumptions => {
-                    input.assumptions = payload_strings(&proposal.payload, "values")?;
                 }
                 _ => unreachable!(),
             }
@@ -516,32 +510,6 @@ fn input_from_detail(detail: &EngagementDetail) -> EngagementInput {
                 notes: asset.notes.clone(),
             })
             .collect(),
-        risks: detail
-            .risks
-            .iter()
-            .map(|risk| RiskInput {
-                title: risk.title.clone(),
-                description: risk.description.clone(),
-                likelihood: risk.likelihood,
-                impact: risk.impact,
-                notes: risk.notes.clone(),
-            })
-            .collect(),
-        assumptions: detail
-            .assumptions
-            .iter()
-            .map(|assumption| assumption.text.clone())
-            .collect(),
-        contacts: detail
-            .contacts
-            .iter()
-            .map(|contact| ContactInput {
-                name: contact.name.clone(),
-                role: contact.role.clone(),
-                email: contact.email.clone(),
-                phone: contact.phone.clone(),
-            })
-            .collect(),
     }
 }
 
@@ -550,20 +518,6 @@ fn payload_string(payload: &serde_json::Value, key: &str) -> AppResult<String> {
         .get(key)
         .and_then(serde_json::Value::as_str)
         .map(str::to_string)
-        .ok_or_else(|| AppError::External("Invalid agent proposal.".into()))
-}
-
-fn payload_strings(payload: &serde_json::Value, key: &str) -> AppResult<Vec<String>> {
-    payload
-        .get(key)
-        .and_then(serde_json::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(serde_json::Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
         .ok_or_else(|| AppError::External("Invalid agent proposal.".into()))
 }
 
